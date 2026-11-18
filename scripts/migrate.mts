@@ -8,7 +8,8 @@ import postgres from "postgres";
 
 nextEnv.loadEnvConfig(process.cwd());
 
-const url = process.env.DATABASE_URL;
+// Migrations need a direct connection; Neon's DATABASE_URL goes through a pooler.
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL is not set. Add it to .env.local (see .env.example).");
   process.exit(1);

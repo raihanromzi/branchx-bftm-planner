@@ -15,7 +15,7 @@ Read `CLAUDE.md`, the brief in `docs/product/briefs/<feature-slug>.md` (or `docs
 
 1. **Check the foundation.** If the backlog has no epic `E0 Foundation`, add it first:
    - `E0-S1` (backend) Scaffold the app with the stack in `CLAUDE.md`. Its criteria: the npm scripts in the Commands table exist with exactly those names; Playwright has `mobile` (360 × 800), `tablet` (768 × 1024) and `desktop` (1280 × 800) projects; `.env.example` lists every variable name; `npm run build` works without secrets; the CI workflow passes on a pushed branch.
-   - `E0-S2` (backend) Connect Postgres with Drizzle, using a driver that also works against plain Postgres, with a first migration and a health check route. Include a database for local development and tests: a Neon development branch, or local Postgres if it is installed. Its `DATABASE_URL` goes in `.env.local`, and the setup steps go in `CLAUDE.md`.
+   - `E0-S2` (backend) Connect Postgres with Drizzle, using a driver that also works against plain Postgres, with a first migration and a health check route. The Neon database already exists, and its variables reach `.env.local` through `vercel env pull` (see `docs/ops/deploy.md`). The story adds the app's database client, using the pooled `DATABASE_URL` with `prepare: false`, plus the health check.
    - `E0-S3` (backend) Admin sign-in, as decided in ADR 0002. It depends on that ADR.
    - `E0-S4` (frontend) The app shell from `DESIGN.md`: bottom navigation on mobile, sidebar on desktop, and the chosen tokens and font. It depends on `E0-S1`.
    Every other story depends on `E0-S1`.
