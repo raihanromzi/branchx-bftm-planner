@@ -41,6 +41,7 @@ Every error has one shape. `fields` is present only on validation errors, with o
 | `409` | `idempotency_key_pending` | Rare: the same create is still being processed. Retry with the same key. |
 | `422` | `idempotency_key_reused` | The key was already used for a different kind of create. Generate a new key. |
 | `422` | `invalid_state` (or a more specific code) | A forbidden state transition. The endpoint documents it. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer set on a record is inactive or does not exist. See [the rule](#rule-only-an-active-funding-officer-can-be-assigned). |
 | `500` | `internal` | Unexpected. No details are returned; they are logged on the server. |
 
 Every message is in Bahasa Indonesia and can be shown to the Admin as it is. Error responses are sent with `Cache-Control: no-store`.
@@ -140,6 +141,115 @@ The signed-in Admin. Never cached.
 
 - Route Handlers: `requireAdmin(request)` from `@/server/auth` returns `{ id, email }` or throws `ApiError` 401. Call it first in every protected handler; `tests/unit/E0-S3.test.ts` checks every `route.ts` under `src/app/api/` for this.
 - Server Components: `getAdmin()` (memoised per render, `null` when signed out) and `requireAdminPage(path)` (redirects to `/masuk?next=<path>`) from `@/server/auth/page`.
+
+## Funding Officers
+
+Implemented in E1-S1. A Funding Officer is a team member that work is assigned to. They do not sign in. A Funding Officer is never deleted (EC22): there is no `DELETE` endpoint, and `DELETE` on these paths answers `405`. Instead they are deactivated, and can be reactivated.
+
+Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations are refused cross-origin (`403 forbidden_origin`). An `:id` that is unknown or not a UUID is `404 not_found`. Responses are sent with `Cache-Control: no-store`.
+
+### The record
+
+```json
+{
+  "id": "6f1c2a4e-1b2d-4c3e-9f8a-1234567890ab",
+  "name": "Rina Kartika",
+  "phone": "+6281234567890",
+  "active": true,
+  "version": 1,
+  "createdAt": "2026-11-19T02:15:00.000Z",
+  "updatedAt": "2026-11-19T02:15:00.000Z"
+}
+```
+
+| Field | Rules |
+|-------|-------|
+| `name` | Required. Free text (see [Input rules](#input-rules)) with at most **100** characters: trimmed, "Wajib diisi." when empty, "Maksimal 100 karakter." when longer, and the customer-number guard. |
+| `phone` | Required. Normalised to `+62…` by the shared phone rule ("Nomor telepon tidak valid. Contoh: 0812 3456 7890"). |
+| `active` | Set by the server: `true` on create, changed only by deactivate and reactivate. Ignored if sent. |
+| `version` | See [Optimistic concurrency](#optimistic-concurrency-version). |
+
+The zod schemas are exported from `@/lib/validation` for inline form checks: `createFundingOfficerInput`, `updateFundingOfficerInput`, `fundingOfficerStatusInput` and `FUNDING_OFFICER_NAME_MAX`.
+
+### `GET /api/funding-officers`
+
+Every Funding Officer: **active ones first, then inactive ones**, each group sorted by name ignoring case. No paging (a team has about 15); at most 200 are returned.
+
+| Status | Body |
+|--------|------|
+| `200` | `{ "items": [ <record>, … ] }`, possibly empty. |
+
+### `POST /api/funding-officers`
+
+Adds an active Funding Officer. Needs an `Idempotency-Key` header (scope `funding-officer.create`).
+
+```json
+{ "name": "Rina Kartika", "phone": "0812 3456 7890" }
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `201` | The record | Created. |
+| `200` | The same record, read again | A repeat with the same `Idempotency-Key`. Nothing new is created. |
+| `400` | `validation` with `fields.name` / `fields.phone`, `invalid_json`, or `idempotency_key` | Bad input or a missing or malformed key. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `422` | `idempotency_key_reused` | The key was used for a different kind of create. |
+
+### `GET /api/funding-officers/:id`
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record | Found (active or not). |
+| `404` | `not_found` | Unknown id. |
+
+### `PATCH /api/funding-officers/:id`
+
+Changes the name and/or the phone. Either may be left out; `version` is required.
+
+```json
+{ "name": "Rina Kartika", "phone": "0813 1111 2222", "version": 1 }
+```
+
+An inactive Funding Officer can be edited too; this does not reactivate them.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `version` increased by 1 | Saved. |
+| `400` | `validation` with `fields.name` / `fields.phone` / `fields.version`, or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The record changed since the client loaded it. |
+
+### `POST /api/funding-officers/:id/deactivate` and `POST /api/funding-officers/:id/reactivate`
+
+Deactivate sets `active` to `false`: no new work can be assigned to the Funding Officer (see the rule below). Existing Prospects, Pipelines and Activities keep their Funding Officer, and nothing else changes. Reactivate sets `active` back to `true`.
+
+```json
+{ "version": 2 }
+```
+
+**Idempotent:** when the Funding Officer is already in the requested state (deactivating an inactive one, or reactivating an active one), the answer is `200` with the record unchanged: nothing is written, `version` does not change, and the sent `version` is not checked. So a double tap or a retry is never a conflict.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, with `active` changed and `version` increased by 1, or unchanged (see above) | Done. |
+| `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
+
+### Rule: only an active Funding Officer can be assigned
+
+Applies to **every create or update that sets a Funding Officer** on a Prospect (E2-S1), a Pipeline (E3-S3) or an Activity (E4-S1). The Funding Officer sent must exist and be active. Otherwise nothing is saved and the response is one of:
+
+| Status | Body | When |
+|--------|------|------|
+| `422` | `{ "error": { "code": "funding_officer_inactive", "message": "Funding Officer ini sudah nonaktif." } }` | The Funding Officer is deactivated. |
+| `422` | `{ "error": { "code": "funding_officer_not_found", "message": "Funding Officer tidak ditemukan." } }` | No Funding Officer has that id (or it is not a UUID). |
+
+Records that already have a Funding Officer who is later deactivated are not affected (EC20). An update that does not change the Funding Officer is not checked against this rule.
+
+Server side: call `assertAssignableFundingOfficer(tx, fundingOfficerId)` from `@/server/funding-officers` inside the transaction that writes the record. It locks the Funding Officer's row `FOR SHARE`, so a deactivation running at the same moment waits for that write to commit.
 
 ## Health
 

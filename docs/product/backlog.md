@@ -69,7 +69,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E1-S1 | As an Admin, I want to add, edit and deactivate Funding Officers, so that work can be assigned to the right person. | 3 | backend | E0-S3, E0-S6 | Todo |
+| E1-S1 | As an Admin, I want to add, edit and deactivate Funding Officers, so that work can be assigned to the right person. | 3 | backend | E0-S3, E0-S6 | Verified |
 | E1-S2 | As an Admin, I want a Funding Officer screen in Pengaturan, so that I can manage my team from my phone. | 3 | frontend | E1-S1, E0-S5 | Todo |
 | E1-S3 | As an Admin, I want to know what open work a Funding Officer still has when I deactivate them, so that nothing is left without an owner. | 2 | backend | E1-S1, E3-S3, E4-S1 | Todo |
 | E1-S4 | As an Admin, I want a confirmation that shows a Funding Officer's open work, and to see records whose Funding Officer is inactive, so that I can reassign them. | 2 | frontend | E1-S3, E1-S2 | Todo |

@@ -107,3 +107,25 @@ export const signInInput = z.object({
     .min(1, { error: REQUIRED_MESSAGE })
     .max(SIGN_IN_PASSWORD_MAX, { error: maxLengthMessage(SIGN_IN_PASSWORD_MAX) }),
 });
+
+/** Longest Funding Officer name (E1-S1). */
+export const FUNDING_OFFICER_NAME_MAX = 100;
+
+/** A Funding Officer's name: required, trimmed, 1 to 100 characters, with the shared free-text rules. */
+const fundingOfficerName = freeText({ max: FUNDING_OFFICER_NAME_MAX });
+
+/** Adding a Funding Officer (E1-S1). A new Funding Officer is always active; `active` is not accepted. */
+export const createFundingOfficerInput = z.object({
+  name: fundingOfficerName,
+  phone,
+});
+
+/** Editing a Funding Officer (E1-S1): any of name and phone, with the version the client loaded. */
+export const updateFundingOfficerInput = z.object({
+  name: fundingOfficerName.optional(),
+  phone: phone.optional(),
+  version,
+});
+
+/** Deactivating or reactivating a Funding Officer (E1-S1): only the version the client loaded. */
+export const fundingOfficerStatusInput = z.object({ version });

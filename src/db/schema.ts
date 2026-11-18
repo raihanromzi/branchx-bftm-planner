@@ -1,7 +1,8 @@
 // Drizzle schema. Backend stories add tables here, then run `npm run db:generate`.
 // ADR 0001: no table or field may hold individual customer data
 // (no account holder names, NIK, account numbers or balances).
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Idempotency-Key values sent with create requests (ADR 0003), so a retried create returns
@@ -63,4 +64,23 @@ export const signInAttempt = pgTable(
     attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sign_in_attempt_email_attempted_at_idx").on(table.email, table.attemptedAt)],
+);
+
+/**
+ * A member of the BFTM's team who does field acquisition (E1-S1). Does not sign in. Never deleted
+ * (EC22): deactivated instead, after which no new work can be assigned to them. The phone is stored
+ * normalised as "+62…" (E0-S6). Holds no customer data (ADR 0001).
+ */
+export const fundingOfficer = pgTable(
+  "funding_officer",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    active: boolean("active").notNull().default(true),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("funding_officer_active_name_idx").on(table.active, sql`lower(${table.name})`)],
 );

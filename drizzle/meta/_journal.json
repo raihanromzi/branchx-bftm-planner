@@ -15,6 +15,13 @@
       "when": 1795021971972,
       "tag": "0001_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795025073027,
+      "tag": "0002_funding_officer",
+      "breakpoints": true
     }
   ]
 }
