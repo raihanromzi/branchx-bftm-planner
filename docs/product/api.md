@@ -45,6 +45,9 @@ Every error has one shape. `fields` is present only on validation errors, with o
 | `422` | `prospect_archived` | An edit to an archived Prospect. See [Prospects](#prospects). |
 | `409` | `template_name_taken`, `template_in_use` | Pipeline Templates: another active template has the name, or a delete of a template a Pipeline uses. See [Pipeline Templates](#pipeline-templates). |
 | `422` | `template_archived`, `last_template`, `template_archived_cannot_start`, `template_not_found` | Pipeline Templates: an edit to an archived template, archiving or deleting the only active one, or starting a Pipeline from an archived or unknown one. |
+| `422` | `prospect_has_open_pipeline` | Archiving a Prospect that has an open or On Hold Pipeline ("Tutup atau tunda Pipeline dulu."). See [Prospects](#prospects). |
+| `409` | `pipeline_already_open` | Pipelines: starting or reopening one while the Prospect has another open or On Hold Pipeline. See [Pipelines](#pipelines). |
+| `422` | `pipeline_closed`, `invalid_transition`, `prospect_not_found` | Pipelines: a change the Pipeline's Outcome does not allow, an Outcome transition that is not allowed, or starting one for an unknown Prospect. |
 | `500` | `internal` | Unexpected. No details are returned; they are logged on the server. |
 
 Every message is in Bahasa Indonesia and can be shown to the Admin as it is. Error responses are sent with `Cache-Control: no-store`.
@@ -314,8 +317,9 @@ A page of Prospects, **sorted by name** ignoring case and repeated spaces. All f
 | `archived` | `0` (default): archived Prospects are left out. `1`: archived Prospects are **included** alongside the others, each with `archived: true` (the "Tampilkan arsip" toggle). |
 | `noLocation` | `1`: only Prospects without a location. `0` (default): no filter. |
 | `page` | 1-based, default `1`. A page past the end answers an empty `items` with the real `total`. |
+| `templateId` + `stagePosition` | The Stage filter (E3-S3 #9): only Prospects whose **open or On Hold** Pipeline was started from template `templateId` (a UUID) and is now at Stage `stagePosition` (1 to 30). The two go together: one without the other is `400` with "Wajib diisi." on the missing one. Prospects with only Won or Lost Pipelines never match. |
 
-The Stage filter is added by E3-S3. Each row:
+Each row:
 
 ```json
 {
@@ -326,18 +330,18 @@ The Stage filter is added by E3-S3. Each row:
   "hasLocation": true,
   "potentialAccounts": 350,
   "archived": false,
-  "openPipeline": null
+  "openPipeline": { "stageName": "Presentasi", "stagePosition": 3, "stageCount": 5 }
 }
 ```
 
-`openPipeline` is always `null` until E3-S3 fills it with the open Pipeline's Stage. **Shape (filled by E3-S3, E3-S3 #9):** `{ "stageName": string, "stagePosition": number, "stageCount": number } | null`, the Stage name, its 1-based position and the Pipeline's Stage count, of the Prospect's open or On Hold Pipeline; `null` when it has none. For example `"openPipeline": { "stageName": "Presentasi", "stagePosition": 3, "stageCount": 5 }`. The Prospect list (E2-S2) already renders this shape as the Stage badge (`src/components/prospects/shared.ts`, `OpenPipelineStage`).
+`openPipeline` (filled since E3-S3 #9): `{ "stageName": string, "stagePosition": number, "stageCount": number } | null`, the current Stage's name, its 1-based position and the Pipeline's Stage count, of the Prospect's **open or On Hold** Pipeline; `null` when it has none (no Pipeline, or only Won or Lost ones). An On Hold Pipeline shows its Stage too; the list does not say it is On Hold. The Prospect list (E2-S2) renders this shape as the Stage badge (`src/components/prospects/shared.ts`, `OpenPipelineStage`).
 
 | Status | Body | When |
 |--------|------|------|
 | `200` | `{ "items": [ <row>, … ], "page": 1, "pageSize": 50, "total": 1248 }` | Always 50 per page. |
-| `400` | `validation` with `fields.<parameter>` | A parameter is invalid (for example `page=0`, an unknown `category`, a `fundingOfficerId` that is not a UUID, `archived=yes`). |
+| `400` | `validation` with `fields.<parameter>` | A parameter is invalid (for example `page=0`, an unknown `category`, a `fundingOfficerId` that is not a UUID, `archived=yes`, `templateId` without `stagePosition`). |
 
-Measured with 2,000 Prospects on local Postgres 16: every query shape answers in a few milliseconds (budget 500 ms, EC6).
+Measured with 2,000 Prospects on local Postgres 16: every query shape answers in a few milliseconds (budget 500 ms, EC6). With 2,000 Pipelines added (E3-S3), the medians are 1 to 6 ms, the Stage filter included.
 
 ### `POST /api/prospects`
 
@@ -409,8 +413,9 @@ Archive sets `archivedAt`: the Prospect leaves the default list but can still be
 | `403` | `forbidden_origin` | Cross-origin request. |
 | `404` | `not_found` | Unknown id. |
 | `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
+| `422` | `{ "error": { "code": "prospect_has_open_pipeline", "message": "Tutup atau tunda Pipeline dulu." } }` | Archive only: the Prospect has an open **or On Hold** Pipeline (E3-S3 #8, EC19). Close it (Won or Lost) first. Pipelines that are all Won or Lost do not block archiving. |
 
-Later stories add rules to archiving, all in the one archive transaction: E3-S3 refuses to archive a Prospect with an open Pipeline (EC19), and E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
+All rules for archiving run in the one archive transaction, with the Prospect's row locked (the lock starting and reopening a Pipeline also take, so no Pipeline can open meanwhile). E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
 
 ## Pipeline Templates
 
@@ -458,7 +463,7 @@ It is an ordinary template: it can be edited, archived, restored or deleted unde
 }
 ```
 
-`position` starts at 1 and follows the order sent. **Stage and Task ids change on every save** (`PUT` replaces them all); nothing refers to them, because Pipelines copy Stages and Tasks. `pipelineCount` is the number of Pipelines (open or closed) started from the template: always `0` until Pipelines exist (E3-S3 fills it). The editor offers "Hapus" only when it is `0`.
+`position` starts at 1 and follows the order sent. **Stage and Task ids change on every save** (`PUT` replaces them all); nothing refers to them, because Pipelines copy Stages and Tasks. `pipelineCount` is the number of Pipelines (open, On Hold, Won or Lost) started from the template (counted since E3-S3). The editor offers "Hapus" only when it is `0`.
 
 | Field | Rules |
 |-------|-------|
@@ -570,7 +575,7 @@ Deletes a template that no Pipeline uses, with its Stages and Tasks. No body. Ar
 | `204` | None | Deleted. A repeat answers `404`. |
 | `403` | `forbidden_origin` | Cross-origin request. |
 | `404` | `not_found` | Unknown id. |
-| `409` | `{ "error": { "code": "template_in_use", "message": "Template ini dipakai Pipeline. Arsipkan saja." } }` | A Pipeline uses it (`pipelineCount` > 0, counted from Pipelines once E3-S3 adds them). Archive it instead (EC21). |
+| `409` | `{ "error": { "code": "template_in_use", "message": "Template ini dipakai Pipeline. Arsipkan saja." } }` | A Pipeline (any Outcome) uses it (`pipelineCount` > 0). Archive it instead (EC21). The database backs this: `pipeline.template_id` is `ON DELETE restrict`. |
 | `422` | `last_template` ("Harus ada minimal satu template aktif.") | It is active and the only active template. |
 
 ### Rule: only an active template can start a Pipeline
@@ -586,7 +591,299 @@ Server side, from `@/server/pipeline-templates`, inside the transaction that sta
 
 - `assertTemplateCanStartPipeline(tx, templateId)` applies the rule above and locks the template's row `FOR SHARE`, so an archive or delete running at the same moment waits for the start to commit.
 - `getTemplateForSnapshot(tx, templateId)` returns `{ id, name, stages: [ { position, name, tasks: [ { position, name } ] } ] }`, in order, to copy into `pipeline_stage` and `pipeline_task`.
-- `countPipelinesUsingTemplate(db, templateId)` and the list's `pipelineCount` read from one internal function (`pipelineCounts`), which returns 0 until E3-S3 makes it count `pipeline.template_id`. E3-S3 should also give `pipeline.template_id` `ON DELETE restrict`, so the database backs the delete rule.
+- `countPipelinesUsingTemplate(db, templateId)` and the list's `pipelineCount` read from one internal function (`pipelineCounts`), a grouped count over `pipeline.template_id` (E3-S3). `pipeline.template_id` is `ON DELETE restrict`, so the database backs the delete rule.
+
+## Pipelines
+
+Implemented in E3-S3. A Pipeline is one acquisition attempt with one Prospect. It is started from a Pipeline Template and **copies the template's Stages and Tasks** at that moment, so later template edits never change it (EC21). It moves through its Stages until it gets an Outcome. A Pipeline is never deleted (EC22): there is no `DELETE /api/pipelines/:id`. A single Task can be removed from one Pipeline.
+
+Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations are refused cross-origin (`403 forbidden_origin`). An `:id` that is unknown or not a UUID is `404 not_found`. Responses are sent with `Cache-Control: no-store`.
+
+### States and the Outcome
+
+| State | `outcome` | UI | Can move Stage | Tasks editable | Counts as "open" for EC16 and EC19 |
+|-------|-----------|----|----------------|----------------|------------------------------------|
+| Open | `null` | (Stage badge) | yes | yes | yes |
+| On Hold | `"on_hold"` | Ditunda | no | no (read-only) | yes |
+| Won | `"won"` | Berhasil | no | no | no |
+| Lost | `"lost"` | Gagal | no | no | no |
+
+`PIPELINE_OUTCOMES` and `PIPELINE_OUTCOME_LABELS` are in `@/lib/validation`.
+
+**Transitions** (`POST /api/pipelines/:id/outcome`, criterion 5, EC24). Every other combination is `422 invalid_transition`:
+
+| From | To (`outcome` sent) | Needs |
+|------|---------------------|-------|
+| Open | `won` | `accountsOpened`, `wonOn` |
+| Open | `lost` | `lostReason` |
+| Open | `on_hold` | nothing |
+| On Hold | `open` (resume, at the same Stage) | nothing |
+| On Hold | `lost` | `lostReason` |
+| Won or Lost | Open | Use `POST /api/pipelines/:id/reopen` (below), not this endpoint. |
+
+**One open Pipeline per Prospect (EC16):** a Prospect has at most one Pipeline that is open or On Hold. The database enforces it with a partial unique index.
+
+**WIB dates.** Every date (`wonOn`, `dueOn`) is a calendar day `"YYYY-MM-DD"`, with no time and no zone. "Today" is the calendar day in WIB (Asia/Jakarta, UTC+7), never UTC: at 2026-01-31 17:30 UTC it is already 2026-02-01 in WIB. `wibDate(now?)` in `@/lib/validation` returns it, for forms that set the date picker's maximum.
+
+**Overdue (EC30):** a Task's `overdue` is `true` when its `dueOn` is before today in WIB, it is not ticked, and the Pipeline is **open**. Tasks on an On Hold, Won or Lost Pipeline are never Overdue: they are read-only, and the brief limits Overdue to open Pipelines. A Task due today is not Overdue.
+
+### The record
+
+`GET /api/pipelines/:id` and every mutation answer the whole Pipeline:
+
+```json
+{
+  "id": "7d2a…",
+  "prospect": { "id": "0b7e…", "name": "SDN 3 Cibinong", "archived": false },
+  "template": { "id": "3c9e…", "name": "Umum" },
+  "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+  "outcome": null,
+  "accountsOpened": null,
+  "wonOn": null,
+  "lostReason": null,
+  "currentStagePosition": 3,
+  "currentStage": { "id": "c3…", "position": 3, "name": "Presentasi" },
+  "stageCount": 5,
+  "tasksDone": 3,
+  "tasksTotal": 11,
+  "prospectHasOtherOpenPipeline": false,
+  "startedAt": "2026-11-19T02:15:00.000Z",
+  "closedAt": null,
+  "version": 4,
+  "createdAt": "2026-11-19T02:15:00.000Z",
+  "updatedAt": "2026-11-19T03:40:00.000Z",
+  "stages": [
+    {
+      "id": "c3…",
+      "position": 3,
+      "name": "Presentasi",
+      "tasksDone": 1,
+      "tasksTotal": 3,
+      "tasks": [
+        { "id": "t1…", "position": 1, "name": "Siapkan materi", "dueOn": null, "done": true, "doneAt": "2026-11-19T03:00:00.000Z", "overdue": false, "version": 2 },
+        { "id": "t2…", "position": 2, "name": "Presentasi ke pengambil keputusan", "dueOn": "2026-11-15", "done": false, "doneAt": null, "overdue": true, "version": 2 }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `template` | The template it was started from, with the template's **current** name. Its Stages and Tasks are the Pipeline's own copy, in `stages`. |
+| `fundingOfficer` | The Pipeline's own Funding Officer: copied from the Prospect at start, changed only by `PATCH /api/pipelines/:id` (EC26). Actual follows it. `active: false` when that Funding Officer was deactivated later. |
+| `currentStagePosition`, `currentStage` | The current Stage, by its 1-based position. A Pipeline's Stages are never added or removed, so the position is stable. Kept while On Hold, Won or Lost, so resume and reopen carry on there. |
+| `accountsOpened`, `wonOn` | Set only while Won. |
+| `lostReason` | Set only while Lost. |
+| `closedAt` | When it became Won or Lost; `null` while open or On Hold. |
+| `prospectHasOtherOpenPipeline` | The Prospect has another open or On Hold Pipeline, so this one cannot be reopened (EC25). The screen disables "Buka kembali" with "Prospect ini sudah punya Pipeline berjalan." |
+| `stages[].tasks[]` | In order. Positions keep their gaps after a Task is removed. Each Task has its **own** `version` (see `PATCH /api/pipeline-tasks/:id`). |
+| `version` | The Pipeline's version. Move, Outcome, reopen and Funding Officer changes increase it; Task edits do **not**. |
+
+The zod schemas are exported from `@/lib/validation`: `startPipelineInput`, `movePipelineInput`, `pipelineOutcomeInput`, `pipelineStatusInput`, `changePipelineFundingOfficerInput`, `updatePipelineTaskInput`, `pipelineListQuery`, `calendarDate`, `accountsOpened`, `wibDate`, and the messages `ACCOUNTS_OPENED_MESSAGE`, `WON_ON_FUTURE_MESSAGE` and `DATE_MESSAGE`.
+
+### `GET /api/pipelines?prospectId=`
+
+A Prospect's Pipelines, **newest first** (by `startedAt`), for the Prospect detail (E2-S4): the open or On Hold one, if any, and the closed ones. At most 100. `prospectId` is required and must be a UUID (`400` with `fields.prospectId` otherwise). An unknown Prospect answers `{ "items": [] }`.
+
+```json
+{ "items": [ {
+  "id": "7d2a…",
+  "template": { "id": "3c9e…", "name": "Umum" },
+  "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+  "outcome": "won",
+  "accountsOpened": 350,
+  "wonOn": "2026-11-18",
+  "lostReason": null,
+  "currentStage": { "position": 5, "name": "Pembukaan Rekening" },
+  "stageCount": 5,
+  "tasksDone": 9,
+  "tasksTotal": 11,
+  "startedAt": "2026-10-02T02:15:00.000Z",
+  "closedAt": "2026-11-18T08:00:00.000Z",
+  "version": 9
+} ] }
+```
+
+### `POST /api/pipelines`
+
+Starts a Pipeline. Needs an `Idempotency-Key` header (scope `pipeline.start`).
+
+```json
+{ "prospectId": "0b7e…", "templateId": "3c9e…" }
+```
+
+It copies the template's Stages and Tasks, starts at the first Stage, and copies the Prospect's Funding Officer (criterion 1). The checks run in the order of the table, in one transaction with the Prospect's row locked:
+
+| Status | Body | When |
+|--------|------|------|
+| `201` | The record | Started. |
+| `200` | The same record, read again | A repeat with the same `Idempotency-Key`. Nothing new is started. |
+| `400` | `validation` (`fields.prospectId`, `fields.templateId`: "Wajib diisi."), `invalid_json`, `idempotency_key` | Bad input or key. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `422` | `{ "error": { "code": "prospect_not_found", "message": "Prospect tidak ditemukan." } }` | No Prospect has that id (or it is not a UUID). |
+| `422` | `{ "error": { "code": "prospect_archived", "message": "Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya." } }` | The Prospect is archived (EC16). The same code and message as editing an archived Prospect. |
+| `409` | `{ "error": { "code": "pipeline_already_open", "message": "Prospect ini masih punya Pipeline yang berjalan." } }` | The Prospect already has an open or On Hold Pipeline (EC16). Two starts at the same moment give one `201` and `409` for the others. |
+| `422` | `template_archived_cannot_start`, `template_not_found` | See [the template rule](#rule-only-an-active-template-can-start-a-pipeline). |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The **Prospect's** Funding Officer is inactive, so no new work can go to them. Reassign the Prospect first. |
+| `422` | `idempotency_key_reused` | The key was used for a different kind of create. |
+
+On any refusal the key is not kept, so a corrected retry with it is allowed.
+
+### `GET /api/pipelines/:id`
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record | Found, in any state. |
+| `404` | `not_found` | Unknown id. |
+
+### `POST /api/pipelines/:id/move`
+
+Moves an **open** Pipeline to any of its Stages, forward or back (criterion 3, EC23). The move always happens; the client warns before sending (E3-S4).
+
+```json
+{ "stagePosition": 4, "version": 3 }
+```
+
+Answer:
+
+```json
+{ "pipeline": { "id": "7d2a…", "currentStagePosition": 4, "version": 4 }, "uncheckedTasksLeftBehind": 2 }
+```
+
+`pipeline` is the whole record. `uncheckedTasksLeftBehind` counts the unticked Tasks in the Stages a **forward** move leaves behind: from the current Stage up to, but not including, the target. It is `0` for a move back. A move to the current Stage is a no-op: `200`, nothing written, the `version` not checked, `uncheckedTasksLeftBehind: 0`.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | As above, `version` increased by 1 | Moved. |
+| `400` | `validation`: `fields.stagePosition` ("Tahap ini tidak ada di Pipeline ini." past the last Stage; "Isian tidak valid." for 0, a decimal or a string), `fields.version` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The Pipeline changed since the client loaded it. |
+| `422` | `{ "error": { "code": "pipeline_closed", "message": "Pipeline ini sudah selesai atau ditunda. Tahapnya tidak bisa diubah." } }` | It is Won, Lost or On Hold. |
+
+### `POST /api/pipelines/:id/outcome`
+
+Sets the Outcome along the transition table above (criterion 5). One of:
+
+```json
+{ "outcome": "won", "accountsOpened": 350, "wonOn": "2026-11-18", "version": 4 }
+```
+
+```json
+{ "outcome": "lost", "lostReason": "Sudah memakai bank lain.", "version": 4 }
+```
+
+```json
+{ "outcome": "on_hold", "version": 4 }
+```
+
+```json
+{ "outcome": "open", "version": 5 }
+```
+
+| Field | Rules |
+|-------|-------|
+| `outcome` | Required: `won`, `lost`, `on_hold`, or `open` (resume an On Hold Pipeline). Missing: "Wajib diisi."; anything else: "Isian tidak valid." |
+| `accountsOpened` | Won only, required: an integer from 1 to 100,000. Otherwise (missing, 0, 100001, 1.5, a string): "Rekening dibuka harus bilangan bulat 1 sampai 100.000." (EC10) |
+| `wonOn` | Won only, required: `"YYYY-MM-DD"`, a real date ("Tanggal tidak valid." otherwise), **not after today in WIB**: "Tanggal berhasil tidak boleh di masa depan." (EC32). Today and earlier are accepted. |
+| `lostReason` | Lost only, required: free text, at most 500 characters, with the customer-number guard (EC42). |
+
+Fields that do not belong to the `outcome` sent are ignored. Won and Lost set `closedAt`. On Hold and resume keep the Stage.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `version` increased by 1 | Done. |
+| `400` | `validation` with `fields` (above), or `invalid_json` | Bad input. The future-date check runs after the version and transition checks. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The Pipeline changed since the client loaded it (checked first). |
+| `422` | `{ "error": { "code": "invalid_transition", "message": "Hasil Pipeline tidak bisa diubah dari Berhasil ke Gagal." } }` | The transition is not in the table. The message names both states: Berjalan (open), Berhasil, Gagal or Ditunda. |
+
+### `POST /api/pipelines/:id/reopen`
+
+Reopens a **Won or Lost** Pipeline (criterion 6, EC25): clears `outcome`, `accountsOpened`, `wonOn`, `lostReason` and `closedAt`, and the Pipeline carries on at the Stage it was in. Reopening a Won Pipeline lowers Actual for its Won month; the client confirms first (E3-S4).
+
+```json
+{ "version": 6 }
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `version` increased by 1 | Reopened. |
+| `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The Pipeline changed since the client loaded it. |
+| `409` | `{ "error": { "code": "pipeline_already_open", "message": "Prospect ini sudah punya Pipeline berjalan." } }` | The Prospect has another open or On Hold Pipeline (`prospectHasOtherOpenPipeline: true`). |
+| `422` | `{ "error": { "code": "invalid_transition", "message": "Hanya Pipeline yang berhasil atau gagal yang bisa dibuka kembali." } }` | It is open or On Hold. |
+| `422` | `prospect_archived` ("Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya.") | Its Prospect is archived. Restore the Prospect first. |
+
+### `PATCH /api/pipelines/:id`
+
+Changes the Pipeline's own Funding Officer (criterion 7, EC26). The Prospect's Funding Officer is unchanged, and changing the Prospect's never changes the Pipeline's.
+
+```json
+{ "fundingOfficerId": "9a2d…", "version": 4 }
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `version` increased by 1 | Saved. |
+| `400` | `validation` (`fields.fundingOfficerId`, `fields.version`), or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The Pipeline changed since the client loaded it. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The new Funding Officer cannot be assigned. Checked only when it changes, so saving an unchanged inactive one is allowed. |
+| `422` | `{ "error": { "code": "pipeline_closed", "message": "Pipeline ini sudah selesai. Buka kembali dulu untuk mengubahnya." } }` | It is Won or Lost, so its Actual is settled. Allowed while open or On Hold. |
+
+### `PATCH /api/pipeline-tasks/:id`
+
+Ticks, unticks, or sets or clears the due date of one Task (criterion 4). Answers the whole Pipeline record. For example:
+
+```json
+{ "done": true, "version": 1 }
+```
+
+```json
+{ "dueOn": "2026-12-01", "version": 2 }
+```
+
+```json
+{ "dueOn": null, "done": false, "version": 3 }
+```
+
+| Field | Rules |
+|-------|-------|
+| `done` | Optional boolean. `true` ticks (sets `doneAt`), `false` unticks. |
+| `dueOn` | Optional: `"YYYY-MM-DD"` (a real date, "Tanggal tidak valid." otherwise), or `null` to clear. Any date, past ones included. |
+| `version` | Required: the **Task's** `version`. |
+
+**Task versions.** Each Task has its own `version`, so ticking a Task never conflicts with moving the Pipeline or with editing another Task. A request that changes nothing (ticking a ticked Task, sending the same due date) writes nothing, does not check the version and answers `200`, so a double tap is harmless. A request that changes something with a stale version is `409 version_conflict`, so a tick from another tab never silently overwrites a due-date edit, or the other way round; reload and retry.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The Pipeline record; the Task's `version` increased by 1 if it changed | Saved. |
+| `400` | `validation` with `fields`, or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown Task id. |
+| `409` | `version_conflict` | The Task changed since the client loaded it. |
+| `422` | `{ "error": { "code": "pipeline_closed", "message": "Pipeline ini sudah selesai atau ditunda. Tugasnya tidak bisa diubah." } }` | The Pipeline is Won, Lost or On Hold. Its Tasks are read-only. |
+
+### `DELETE /api/pipeline-tasks/:id`
+
+Removes one Task from its Pipeline (EC22). The template and other Pipelines keep it. No body.
+
+| Status | Body | When |
+|--------|------|------|
+| `204` | None | Removed. A repeat answers `404`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown Task id. |
+| `422` | `pipeline_closed` (the Task message above) | The Pipeline is Won, Lost or On Hold. |
+
+### Server-side helpers (for later stories)
+
+From `@/server/pipelines`: `getPipeline(id, { db, now })`, `listPipelinesForProspect(prospectId)`, and `isOpenOrOnHold()` (the Drizzle condition "outcome is null or on_hold"), for E1-S3's open-work counts and the dashboard. Every mutation takes an optional `now`, so tests can fix the clock.
 
 ## Health
 

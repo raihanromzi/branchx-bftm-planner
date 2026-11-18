@@ -38,7 +38,18 @@ export default async function globalSetup() {
     // Funding Officers that earlier e2e runs created, and only those: every one has the e2e marker at the
     // end of its name (support/funding-officers.ts). The API never deletes a Funding Officer (EC22), so
     // without this they pile up in the dev database until the list's 200-row cap hides new ones.
-    // Prospects go first: a Funding Officer cannot be deleted while a Prospect points to it (restrict).
+    // Pipelines (E3-S3) go first, with their Stages and Tasks (cascade): a Prospect, Funding Officer or
+    // template cannot be deleted while a Pipeline points to it (restrict). Removed: Pipelines of e2e
+    // Prospects, of e2e Funding Officers, or started from e2e templates.
+    await sql`
+      delete from pipeline
+      where prospect_id in (
+              select id from prospect
+              where name ~ ${E2E_NAME_PATTERN}
+                 or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN}))
+         or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})
+         or template_id in (select id from pipeline_template where name ~ ${E2E_NAME_PATTERN})`;
+    // Prospects go next: a Funding Officer cannot be deleted while a Prospect points to it (restrict).
     // Removed: Prospects with the marker, and any Prospect assigned to a marked (e2e) Funding Officer.
     await sql`
       delete from prospect
@@ -46,7 +57,7 @@ export default async function globalSetup() {
          or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})`;
     await sql`delete from funding_officer where name ~ ${E2E_NAME_PATTERN}`;
     // Pipeline Templates that e2e runs created (E3-S1); their Stages and Tasks go with them (cascade).
-    // Nothing points to a template yet; when Pipelines do (E3-S3), delete their e2e Pipelines first.
+    // Their Pipelines were deleted above.
     await sql`delete from pipeline_template where name ~ ${E2E_NAME_PATTERN}`;
   } finally {
     await sql.end();

@@ -3,9 +3,9 @@
 // Pipelines (EC21). Route Handlers live in src/app/api/pipeline-templates/ (ADR 0003).
 // The default template "Umum" is seeded by migration drizzle/0004_pipeline_template.sql.
 import "server-only";
-import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { pipelineTemplate, templateStage, templateTask } from "@/db/schema";
+import { pipeline, pipelineTemplate, templateStage, templateTask } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
 import { ApiError, conflict, invalidState, notFound, updateWithVersion } from "@/server/http";
 import {
@@ -79,13 +79,17 @@ export type TemplateSnapshot = {
   stages: { position: number; name: string; tasks: { position: number; name: string }[] }[];
 };
 
-/**
- * How many Pipelines (open or closed) use each template. Pipelines arrive in E3-S3, which replaces
- * this body with a grouped count over pipeline.template_id; until then no template is in use.
- */
+/** How many Pipelines (open, On Hold or closed) use each template: a grouped count over pipeline.template_id. */
 async function pipelineCounts(db: Db | Tx, templateIds: string[]): Promise<Map<string, number>> {
-  void db;
-  return new Map(templateIds.map((id) => [id, 0]));
+  const counts = new Map(templateIds.map((id) => [id, 0]));
+  if (templateIds.length === 0) return counts;
+  const rows = await db
+    .select({ templateId: pipeline.templateId, pipelines: count() })
+    .from(pipeline)
+    .where(inArray(pipeline.templateId, templateIds))
+    .groupBy(pipeline.templateId);
+  for (const row of rows) counts.set(row.templateId, row.pipelines);
+  return counts;
 }
 
 /** How many Pipelines use the template: the rule behind DELETE (EC21) and `pipelineCount`. */

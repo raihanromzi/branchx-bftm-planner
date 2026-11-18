@@ -61,11 +61,15 @@ template_stage (template_id → pipeline_template, position, name)
 template_task (stage_id → template_stage, position, name)
 
 pipeline (prospect_id → prospect, template_id → pipeline_template, funding_officer_id → funding_officer,
-          current_stage_id → pipeline_stage, outcome enum null|won|lost|on_hold,
-          accounts_opened, won_on date, lost_reason, closed_at)
+          all ON DELETE restrict; current_stage_position, outcome enum null|won|lost|on_hold,
+          accounts_opened, won_on date, lost_reason, closed_at, started_at)
           partial unique index: one row per prospect where outcome is null or on_hold
-pipeline_stage (pipeline_id → pipeline, position, name)        copied from the template at start
-pipeline_task (stage_id → pipeline_stage, position, name, due_on date, done_at)
+          checks: won ⇔ accounts_opened (1..100000) and won_on; lost ⇔ lost_reason; won/lost ⇔ closed_at
+          the current Stage is stored by position, not by id: Stages are copied once and never added or
+          removed, so the position is stable and the row needs no circular foreign key (E3-S3)
+pipeline_stage (pipeline_id → pipeline cascade, position, name)   copied from the template at start
+pipeline_task (stage_id → pipeline_stage cascade, position, name, due_on date, done_at, version)
+          each Task has its own version, so Task edits never conflict with moving the Pipeline
 
 activity (prospect_id → prospect, funding_officer_id → funding_officer, pipeline_id → pipeline null,
           starts_at, purpose, status enum scheduled|done|cancelled)
@@ -89,7 +93,7 @@ Resources and operations. The bodies are in `api.md`, and the conventions are in
 | `/api/funding-officers` | list, create, `PATCH :id`, `POST :id/deactivate`, `POST :id/reactivate`, `GET :id/deactivation-preview` |
 | `/api/prospects` | list (page, q, filters), create, `GET :id`, `PATCH :id`, `GET :id/archive-preview`, `POST :id/archive`, `POST :id/restore` |
 | `/api/pipeline-templates` | list, create, `GET :id`, `PUT :id` (whole template), `POST :id/archive`, `POST :id/restore`, `DELETE :id` (only if unused) |
-| `/api/pipelines` | `POST` (start for a Prospect), `GET :id`, `POST :id/move`, `PATCH :id` (Funding Officer), `POST :id/outcome`, `POST :id/reopen`, `PATCH /api/pipeline-tasks/:id`, `DELETE /api/pipeline-tasks/:id` |
+| `/api/pipelines` | `GET ?prospectId=` (a Prospect's Pipelines), `POST` (start for a Prospect), `GET :id`, `POST :id/move`, `PATCH :id` (Funding Officer), `POST :id/outcome`, `POST :id/reopen`, `PATCH /api/pipeline-tasks/:id`, `DELETE /api/pipeline-tasks/:id` |
 | `/api/activities` | list (from, to, Funding Officer), create, `GET :id`, `POST :id/cancel`, `POST :id/check-in` (multipart) |
 | `/api/check-ins/:id/photo` | `GET` (authenticated stream) |
 | `/api/targets` | `GET ?month=`, `PUT` (upsert one Funding Officer's month) |

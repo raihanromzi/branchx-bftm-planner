@@ -277,6 +277,17 @@ export const prospectListQuery = z.preprocess(
     archived: flag,
     noLocation: flag,
     page: z.coerce.number().int().min(1).max(100_000).default(1),
+    // The Stage filter (E3-S3 criterion 9): the open or On Hold Pipeline's template and current Stage
+    // position. The two go together.
+    templateId: z.string().regex(UUID_PATTERN).optional(),
+    stagePosition: z.coerce.number().int().min(1).max(30).optional(), // 30 = STAGES_MAX (declared below)
+  }).superRefine((query, ctx) => {
+    if (query.templateId !== undefined && query.stagePosition === undefined) {
+      ctx.addIssue({ code: "custom", path: ["stagePosition"], message: REQUIRED_MESSAGE });
+    }
+    if (query.stagePosition !== undefined && query.templateId === undefined) {
+      ctx.addIssue({ code: "custom", path: ["templateId"], message: REQUIRED_MESSAGE });
+    }
   }),
 );
 
@@ -350,3 +361,117 @@ export const updatePipelineTemplateInput = z.object({
 
 /** Archiving or restoring a Pipeline Template (E3-S1): only the version the client loaded. */
 export const pipelineTemplateStatusInput = z.object({ version });
+
+// Pipelines (E3-S3). A Pipeline copies its template's Stages and Tasks when it starts; its Outcome
+// moves only along the transitions in api.md (Pipelines).
+
+/** Accounts Opened range (E3-S3 criterion 5, EC10). */
+export const ACCOUNTS_OPENED_MAX = 100_000;
+export const ACCOUNTS_OPENED_MESSAGE = "Rekening dibuka harus bilangan bulat 1 sampai 100.000.";
+export const WON_ON_FUTURE_MESSAGE = "Tanggal berhasil tidak boleh di masa depan.";
+export const DATE_MESSAGE = "Tanggal tidak valid.";
+
+/** The Outcome values the API sends: null is an open Pipeline. UI labels in PIPELINE_OUTCOME_LABELS. */
+export const PIPELINE_OUTCOMES = ["won", "lost", "on_hold"] as const;
+export type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
+export const PIPELINE_OUTCOME_LABELS: Record<PipelineOutcome, string> = {
+  won: "Berhasil",
+  lost: "Gagal",
+  on_hold: "Ditunda",
+};
+
+const WIB_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * The calendar day in WIB (Asia/Jakarta) as "YYYY-MM-DD". At 2026-01-31T17:30Z it is already
+ * "2026-02-01" (00:30 WIB). Used for the Won date limit (EC32) and Overdue Tasks (EC30).
+ */
+export function wibDate(now: Date = new Date()): string {
+  return WIB_DATE.format(now);
+}
+
+/** A calendar date "YYYY-MM-DD" that exists (no 30 February). */
+export const calendarDate = z
+  .string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : DATE_MESSAGE) })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: DATE_MESSAGE, abort: true })
+  .refine(
+    (value) => {
+      const date = new Date(`${value}T00:00:00Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    },
+    { error: DATE_MESSAGE },
+  );
+
+/** Accounts Opened: an integer from 1 to 100,000. */
+export const accountsOpened = z
+  .number({ error: ACCOUNTS_OPENED_MESSAGE })
+  .int({ error: ACCOUNTS_OPENED_MESSAGE })
+  .min(1, { error: ACCOUNTS_OPENED_MESSAGE })
+  .max(ACCOUNTS_OPENED_MAX, { error: ACCOUNTS_OPENED_MESSAGE });
+
+const requiredId = z.string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : INVALID_MESSAGE) }).trim().min(1, { error: REQUIRED_MESSAGE });
+
+/** Starting a Pipeline (E3-S3 criterion 1): the Prospect and the template. Needs an Idempotency-Key. */
+export const startPipelineInput = z.object({
+  prospectId: requiredId,
+  templateId: requiredId,
+});
+
+/** Moving a Pipeline to one of its Stages (E3-S3 criterion 3), by 1-based position. */
+export const movePipelineInput = z.object({
+  stagePosition: z.number().int().min(1),
+  version,
+});
+
+/**
+ * Setting the Outcome (E3-S3 criterion 5). "open" resumes an On Hold Pipeline. Won needs Accounts
+ * Opened and the Won date ("YYYY-MM-DD"; the server also refuses a date after today in WIB, EC32);
+ * Lost needs a reason (free text, the customer-number guard). Fields of other outcomes are ignored.
+ */
+export const pipelineOutcomeInput = z.discriminatedUnion(
+  "outcome",
+  [
+    z.object({ outcome: z.literal("won"), accountsOpened, wonOn: calendarDate, version }),
+    z.object({ outcome: z.literal("lost"), lostReason: freeText(), version }),
+    z.object({ outcome: z.literal("on_hold"), version }),
+    z.object({ outcome: z.literal("open"), version }),
+  ],
+  {
+    // The discriminator's issue carries the whole body as its input.
+    error: (issue) =>
+      issue.input === undefined || (issue.input as { outcome?: unknown } | null)?.outcome === undefined
+        ? REQUIRED_MESSAGE
+        : INVALID_MESSAGE,
+  },
+);
+
+/** Reopening a Won or Lost Pipeline (E3-S3 criterion 6): only the version the client loaded. */
+export const pipelineStatusInput = z.object({ version });
+
+/** Changing a Pipeline's own Funding Officer (E3-S3 criterion 7, EC26). */
+export const changePipelineFundingOfficerInput = z.object({
+  fundingOfficerId: requiredId,
+  version,
+});
+
+/**
+ * Editing one Task of a Pipeline (E3-S3 criterion 4): tick or untick (`done`), set or clear the due
+ * date (`dueOn`, "YYYY-MM-DD" or null), with the Task's own version. A field left out is unchanged.
+ */
+export const updatePipelineTaskInput = z.object({
+  done: z.boolean().optional(),
+  dueOn: calendarDate.nullable().optional(),
+  version,
+});
+
+/** The query string of GET /api/pipelines: the Prospect whose Pipelines to list. */
+export const pipelineListQuery = z.object({
+  prospectId: z
+    .string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : INVALID_MESSAGE) })
+    .regex(UUID_PATTERN),
+});

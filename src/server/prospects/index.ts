@@ -2,12 +2,12 @@
 // only archived and restored. Route Handlers live in src/app/api/prospects/ (ADR 0003).
 // ADR 0001: a Prospect is never an account holder; the only person stored is its Contact Person.
 import "server-only";
-import { type SQL, and, asc, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { type SQL, and, asc, count, eq, exists, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { fundingOfficer, prospect } from "@/db/schema";
+import { fundingOfficer, pipeline, pipelineStage, prospect } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
 import { assertAssignableFundingOfficer } from "@/server/funding-officers";
-import { ApiError, notFound, updateWithVersion } from "@/server/http";
+import { ApiError, invalidState, notFound, updateWithVersion } from "@/server/http";
 import {
   type ProspectCategory,
   type createProspectInput,
@@ -28,6 +28,8 @@ export {
 } from "@/server/validation";
 
 export const PROSPECT_ARCHIVED_MESSAGE = "Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya.";
+/** Archiving a Prospect with an open or On Hold Pipeline (E3-S3 criterion 8, EC19). */
+export const PROSPECT_HAS_OPEN_PIPELINE_MESSAGE = "Tutup atau tunda Pipeline dulu.";
 /** The idempotency scope of POST /api/prospects. */
 export const CREATE_SCOPE = "prospect.create";
 /** Rows per page of the list (E2-S1 criterion 4, EC6). */
@@ -58,7 +60,10 @@ export type ProspectRecord = {
   updatedAt: Date;
 };
 
-/** One row of the list. `openPipeline` is null until E3-S3 fills it. */
+/** The Stage of a Prospect's open or On Hold Pipeline on a list row (E3-S3 criterion 9). */
+export type OpenPipelineStage = { stageName: string; stagePosition: number; stageCount: number };
+
+/** One row of the list. `openPipeline` is null when the Prospect has no open or On Hold Pipeline. */
 export type ProspectListItem = {
   id: string;
   name: string;
@@ -67,7 +72,7 @@ export type ProspectListItem = {
   hasLocation: boolean;
   potentialAccounts: number | null;
   archived: boolean;
-  openPipeline: null;
+  openPipeline: OpenPipelineStage | null;
 };
 
 export type ProspectPage = { items: ProspectListItem[]; page: number; pageSize: number; total: number };
@@ -101,6 +106,25 @@ function toRecord(row: Row, officer: FundingOfficerRef): ProspectRecord {
   };
 }
 
+const openOrOnHold = or(isNull(pipeline.outcome), eq(pipeline.outcome, "on_hold"));
+
+/**
+ * The open or On Hold Pipeline's Stage name, position and Stage count, as one JSON value, or null
+ * (E3-S3 criterion 9). A correlated subquery per row of the page (50 at most): the partial unique
+ * index finds the Pipeline, and (pipeline_id, position) finds the Stage. prospects reads the Pipeline
+ * tables directly rather than importing the pipelines module (docs/architecture.md).
+ */
+const openPipelineSql = sql<OpenPipelineStage | null>`(
+  select json_build_object(
+    'stageName', ${pipelineStage.name},
+    'stagePosition', ${pipeline.currentStagePosition},
+    'stageCount', (select count(*)::int from ${pipelineStage} as all_stages where all_stages.pipeline_id = ${pipeline.id})
+  )
+  from ${pipeline}
+  join ${pipelineStage} on ${pipelineStage.pipelineId} = ${pipeline.id} and ${pipelineStage.position} = ${pipeline.currentStagePosition}
+  where ${pipeline.prospectId} = ${prospect.id} and (${pipeline.outcome} is null or ${pipeline.outcome} = 'on_hold')
+)`;
+
 /** Escapes LIKE's wildcards so the search matches `%`, `_` and `\` literally. */
 function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
@@ -122,6 +146,24 @@ export async function listProspects(
   if (query.category) conditions.push(eq(prospect.category, query.category));
   if (query.fundingOfficerId) conditions.push(eq(prospect.fundingOfficerId, query.fundingOfficerId));
   if (query.noLocation) conditions.push(isNull(prospect.lat));
+  if (query.templateId !== undefined && query.stagePosition !== undefined) {
+    // The Stage filter (E3-S3 criterion 9): the open or On Hold Pipeline is from this template and at this Stage.
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(pipeline)
+          .where(
+            and(
+              eq(pipeline.prospectId, prospect.id),
+              openOrOnHold,
+              eq(pipeline.templateId, query.templateId),
+              eq(pipeline.currentStagePosition, query.stagePosition),
+            ),
+          ),
+      ),
+    );
+  }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [rows, [{ total }]] = await Promise.all([
@@ -134,6 +176,7 @@ export async function listProspects(
         potentialAccounts: prospect.potentialAccounts,
         archived: isNotNull(prospect.archivedAt).mapWith(Boolean),
         fundingOfficer: officerColumns,
+        openPipeline: openPipelineSql,
       })
       .from(prospect)
       .innerJoin(fundingOfficer, eq(fundingOfficer.id, prospect.fundingOfficerId))
@@ -145,7 +188,7 @@ export async function listProspects(
   ]);
 
   return {
-    items: rows.map((row) => ({ ...row, openPipeline: null })),
+    items: rows,
     page: query.page,
     pageSize: LIST_PAGE_SIZE,
     total,
@@ -270,7 +313,8 @@ export async function updateProspect(
  *
  * This is the single entry point for archiving, and it runs in one transaction with the row locked,
  * so the rules later stories add belong here, before the update: the open-Pipeline guard (E3-S3,
- * EC19) and cancelling the Prospect's future Activities (E4-S1).
+ * EC19: 422 prospect_has_open_pipeline, "Tutup atau tunda Pipeline dulu.") and cancelling the
+ * Prospect's future Activities (E4-S1).
  */
 export async function archiveProspect(
   id: string,
@@ -280,6 +324,14 @@ export async function archiveProspect(
   return db.transaction(async (tx) => {
     const current = await lockProspect(tx, id);
     if (current.archivedAt === null) {
+      // EC19: a Prospect with an open or On Hold Pipeline cannot be archived. Starting and reopening a
+      // Pipeline take the same row lock, so none can appear between this check and the update.
+      const [open] = await tx
+        .select({ id: pipeline.id })
+        .from(pipeline)
+        .where(and(eq(pipeline.prospectId, id), openOrOnHold))
+        .limit(1);
+      if (open) throw invalidState(PROSPECT_HAS_OPEN_PIPELINE_MESSAGE, "prospect_has_open_pipeline");
       await updateWithVersion(prospect, id, input.version, { archivedAt: sql`now()` }, { db: tx });
     }
     return getProspect(id, { db: tx });

@@ -583,7 +583,7 @@ describe("E3-S1 Pipeline Templates", () => {
       expect((await del(created.id)).status).toBe(204);
     });
 
-    it("counts the Pipelines using a template as 0 until Pipelines exist (E3-S3)", async () => {
+    it("counts 0 Pipelines for a template no Pipeline uses (the in-use path is tested in E3-S3)", async () => {
       const created = await createOk();
       expect(await countPipelinesUsingTemplate(getDb(), created.id)).toBe(0);
     });

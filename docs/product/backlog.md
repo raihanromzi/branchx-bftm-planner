@@ -187,7 +187,7 @@ Release:
 |----|-------|--------|-------|------------|--------|
 | E3-S1 | As an Admin, I want to manage Pipeline Templates with ordered Stages and Tasks, so that each kind of Prospect follows the right steps. | 5 | backend | E0-S3, E0-S6 | Verified |
 | E3-S2 | As an Admin, I want a Pipeline Template screen in Pengaturan, so that I can edit Stages and Tasks without a developer. | 5 | frontend | E3-S1, E0-S5 | Todo |
-| E3-S3 | As an Admin, I want to start a Pipeline, move it between Stages, tick Tasks and set its Outcome, so that every acquisition's state is recorded. | 8 | backend | E3-S1, E2-S1 | Todo |
+| E3-S3 | As an Admin, I want to start a Pipeline, move it between Stages, tick Tasks and set its Outcome, so that every acquisition's state is recorded. | 8 | backend | E3-S1, E2-S1 | Verified |
 | E3-S4 | As an Admin, I want a Pipeline detail screen, so that I can update a Pipeline in the field in a few taps. | 8 | frontend | E3-S3, E2-S3 | Todo |
 
 ### E3-S1 acceptance criteria
@@ -423,6 +423,10 @@ Release:
 
 ## Open questions
 
+Open:
+
+3. **Archiving a Prospect whose Pipeline is On Hold (E3-S3 #8 vs the brief's EC19).** The brief blocks archiving only while a Pipeline is open, and its message "Tutup atau tunda Pipeline dulu." offers On Hold as a way out. E3-S3 #8 also blocks On Hold, which is what is built. Asked the user on 2026-11-19.
+
 Resolved:
 
 1. Stage filter on the Prospect list: added to E2-S1 criterion 4. The user approved it with the designs on 2026-11-18.
@@ -430,7 +434,6 @@ Resolved:
 
 ## Follow-ups
 
-- **Template in use (from E3-S1).** E3-S1 criterion 4's "used by a Pipeline → archive only, no delete" path could not be tested before Pipelines existed. E3-S3 makes `pipelineCounts` real and adds the tests: DELETE answers 409 `template_in_use`, and the list shows the real `pipelineCount`.
 - **Shell and dynamic routes (from E2-S2).** `src/components/shell/bottom-nav.tsx` calls `usePathname()` outside a Suspense boundary, which blocks prerendering for routes with a dynamic segment. The placeholder `src/app/(app)/prospect/[id]/page.tsx` works around it with `export const instant = false`, and so does `src/app/(app)/prospect/[id]/ubah/page.tsx` (E2-S3). E2-S4 builds the real detail page and fixes this in the shell, so no page needs the workaround.
 
 ## Bugs

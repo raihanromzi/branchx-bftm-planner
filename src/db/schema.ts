@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   doublePrecision,
   index,
   integer,
@@ -15,7 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { PROSPECT_CATEGORIES } from "@/lib/validation";
+import { PIPELINE_OUTCOMES, PROSPECT_CATEGORIES } from "@/lib/validation";
 
 /**
  * Idempotency-Key values sent with create requests (ADR 0003), so a retried create returns
@@ -207,5 +208,111 @@ export const templateTask = pgTable(
     uniqueIndex("template_task_stage_id_position_idx").on(table.stageId, table.position),
     check("template_task_position", sql`${table.position} >= 1`),
     check("template_task_name_length", sql`char_length(${table.name}) between 1 and 120`),
+  ],
+);
+
+/** A Pipeline's Outcome (E3-S3). null (no Outcome) is an open Pipeline. */
+export const pipelineOutcome = pgEnum("pipeline_outcome", PIPELINE_OUTCOMES);
+
+/**
+ * One acquisition attempt with one Prospect (E3-S3). Started from a template, whose Stages and Tasks
+ * it copies (pipeline_stage, pipeline_task), so later template edits never change it (EC21). Never
+ * deleted (EC22). The current Stage is stored as its 1-based position (current_stage_position): a
+ * Pipeline's Stages are copied once and never added or removed, so the position is stable, and the
+ * Pipeline row can be inserted before its Stages without a circular foreign key.
+ * At most one open or On Hold Pipeline per Prospect (partial unique index, EC16). The Funding
+ * Officer is the Pipeline's own, copied from the Prospect at start and changed separately (EC26).
+ */
+export const pipeline = pgTable(
+  "pipeline",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    prospectId: uuid("prospect_id")
+      .notNull()
+      .references(() => prospect.id, { onDelete: "restrict" }),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => pipelineTemplate.id, { onDelete: "restrict" }),
+    fundingOfficerId: uuid("funding_officer_id")
+      .notNull()
+      .references(() => fundingOfficer.id, { onDelete: "restrict" }),
+    currentStagePosition: integer("current_stage_position").notNull().default(1),
+    outcome: pipelineOutcome("outcome"),
+    accountsOpened: integer("accounts_opened"),
+    wonOn: date("won_on", { mode: "string" }),
+    lostReason: text("lost_reason"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pipeline_one_open_per_prospect_idx")
+      .on(table.prospectId)
+      .where(sql`${table.outcome} is null or ${table.outcome} = 'on_hold'`),
+    index("pipeline_prospect_id_started_at_idx").on(table.prospectId, table.startedAt),
+    index("pipeline_template_id_idx").on(table.templateId),
+    index("pipeline_funding_officer_id_idx").on(table.fundingOfficerId),
+    check("pipeline_current_stage_position", sql`${table.currentStagePosition} >= 1`),
+    check(
+      "pipeline_accounts_opened_range",
+      sql`${table.accountsOpened} is null or ${table.accountsOpened} between 1 and 100000`,
+    ),
+    check(
+      "pipeline_won_fields",
+      sql`(${table.outcome} is not distinct from 'won') = (${table.accountsOpened} is not null)
+        and (${table.outcome} is not distinct from 'won') = (${table.wonOn} is not null)`,
+    ),
+    check("pipeline_lost_fields", sql`(${table.outcome} is not distinct from 'lost') = (${table.lostReason} is not null)`),
+    check(
+      "pipeline_closed_at",
+      sql`coalesce(${table.outcome} in ('won', 'lost'), false) = (${table.closedAt} is not null)`,
+    ),
+  ],
+);
+
+/** One Stage of a Pipeline, copied from its template at start, at a 1-based position (E3-S3). */
+export const pipelineStage = pgTable(
+  "pipeline_stage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pipelineId: uuid("pipeline_id")
+      .notNull()
+      .references(() => pipeline.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+  },
+  (table) => [
+    uniqueIndex("pipeline_stage_pipeline_id_position_idx").on(table.pipelineId, table.position),
+    check("pipeline_stage_position", sql`${table.position} >= 1`),
+    check("pipeline_stage_name_length", sql`char_length(${table.name}) between 1 and 60`),
+  ],
+);
+
+/**
+ * One Task of a Pipeline Stage, copied from the template at start (E3-S3). Ticked when done_at is
+ * set. Can be given a due date and removed from its Pipeline (EC22). Has its own version, so editing
+ * a Task never conflicts with moving the Pipeline.
+ */
+export const pipelineTask = pgTable(
+  "pipeline_task",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stageId: uuid("stage_id")
+      .notNull()
+      .references(() => pipelineStage.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+    dueOn: date("due_on", { mode: "string" }),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pipeline_task_stage_id_position_idx").on(table.stageId, table.position),
+    check("pipeline_task_position", sql`${table.position} >= 1`),
+    check("pipeline_task_name_length", sql`char_length(${table.name}) between 1 and 120`),
   ],
 );
