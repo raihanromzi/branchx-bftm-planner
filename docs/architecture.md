@@ -11,6 +11,7 @@ src/app/                    pages (Server Components) and api/ Route Handlers  â
   api/<module>/...          JSON Route Handlers (ADR 0003)
 src/components/             UI components; ui/ is shadcn
 src/lib/                    client-safe helpers: api-client, format (id-ID, WIB), geo (haversine)
+  validation/               shared zod rules (phone, free text, version), reused by forms; server/validation re-exports them
 src/server/                 server-only; never imported by client components
   db/                       postgres.js + Drizzle client (prepare: false)
   http/                     shared Route Handler plumbing: error shape, idempotency, version check, Origin check

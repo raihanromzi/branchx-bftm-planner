@@ -16,7 +16,7 @@ Release:
 | E0-S3 | As an Admin, I want to sign in with my email and password, so that only I can see and change the team's data. | 5 | backend | E0-S2, ADR 0002 | Todo |
 | E0-S4 | As an Admin, I want an app shell with navigation that fits my phone and my laptop, and that I can install, so that I can reach every screen quickly. | 5 | frontend | E0-S1 | Todo |
 | E0-S5 | As an Admin, I want a sign-in screen, so that I can get into the app and return to the page I asked for. | 3 | frontend | E0-S3, E0-S4 | Todo |
-| E0-S6 | As an Admin, I want every form to apply the same input rules, so that phone numbers are consistent, customer data is kept out, and nothing is saved twice or overwritten silently. | 5 | backend | E0-S2 | Todo |
+| E0-S6 | As an Admin, I want every form to apply the same input rules, so that phone numbers are consistent, customer data is kept out, and nothing is saved twice or overwritten silently. | 5 | backend | E0-S2 | Verified |
 
 ### E0-S1 acceptance criteria
 1. The npm scripts `dev`, `lint`, `typecheck`, `test`, `test:e2e`, `db:generate`, `db:migrate`, `build` and `vercel-build` exist with exactly these names.

@@ -46,3 +46,7 @@ export function getSql(): Sql {
 export function getDb() {
   return client().db;
 }
+
+export type Db = ReturnType<typeof getDb>;
+/** A transaction handle from `getDb().transaction(...)`, with the same query API as Db. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
