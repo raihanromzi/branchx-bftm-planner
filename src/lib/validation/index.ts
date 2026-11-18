@@ -279,3 +279,74 @@ export const prospectListQuery = z.preprocess(
     page: z.coerce.number().int().min(1).max(100_000).default(1),
   }),
 );
+
+// Pipeline Templates (E3-S1). A template is a name and ordered Stages, each with ordered Task names.
+
+/** Longest template name, Stage name and Task name, and the most Stages and Tasks per Stage (E3-S1, docs/design/E3-S2.md). */
+export const PIPELINE_TEMPLATE_NAME_MAX = 100;
+export const STAGE_NAME_MAX = 60;
+export const TASK_NAME_MAX = 120;
+export const STAGES_MAX = 30;
+export const TASKS_PER_STAGE_MAX = 30;
+
+export const PIPELINE_TEMPLATE_NAME_REQUIRED_MESSAGE = "Nama template wajib diisi.";
+export const STAGES_REQUIRED_MESSAGE = "Tambahkan minimal satu Stage.";
+export const STAGE_NAME_REQUIRED_MESSAGE = "Nama Tahap wajib diisi.";
+export const TASK_NAME_REQUIRED_MESSAGE = "Nama Tugas wajib diisi.";
+export const STAGES_MAX_MESSAGE = `Maksimal ${STAGES_MAX} Tahap.`;
+export const TASKS_MAX_MESSAGE = `Maksimal ${TASKS_PER_STAGE_MAX} Tugas per Tahap.`;
+
+/**
+ * The key template names are compared by: trimmed, whitespace collapsed, lower-cased (the same rule
+ * as prospectNameKey). Two active templates cannot share a key.
+ */
+export function pipelineTemplateNameKey(name: string): string {
+  return prospectNameKey(name);
+}
+
+const pipelineTemplateName = freeText({
+  max: PIPELINE_TEMPLATE_NAME_MAX,
+  requiredMessage: PIPELINE_TEMPLATE_NAME_REQUIRED_MESSAGE,
+});
+
+/** A Task in a template: only its name. Its position is its index in the Stage's `tasks`. */
+export const templateTaskInput = z.object({
+  name: freeText({ max: TASK_NAME_MAX, requiredMessage: TASK_NAME_REQUIRED_MESSAGE }),
+});
+
+/** A Stage in a template: its name and its Tasks (zero or more, default none), in order. */
+export const templateStageInput = z.object({
+  name: freeText({ max: STAGE_NAME_MAX, requiredMessage: STAGE_NAME_REQUIRED_MESSAGE }),
+  tasks: z
+    .array(templateTaskInput)
+    .max(TASKS_PER_STAGE_MAX, { error: TASKS_MAX_MESSAGE })
+    .nullish()
+    .transform((value) => value ?? []),
+});
+
+/** The Stages of a template, in order: 1 to 30. Missing or empty is "Tambahkan minimal satu Stage." (EC3). */
+const templateStages = z
+  .array(templateStageInput, {
+    error: (issue) => (issue.input === undefined || issue.input === null ? STAGES_REQUIRED_MESSAGE : INVALID_MESSAGE),
+  })
+  .min(1, { error: STAGES_REQUIRED_MESSAGE })
+  .max(STAGES_MAX, { error: STAGES_MAX_MESSAGE });
+
+/**
+ * Adding a Pipeline Template (E3-S1). Field errors are keyed by path: "name", "stages",
+ * "stages.2.name", "stages.1.tasks", "stages.1.tasks.0.name" (indexes from 0). Unknown keys are dropped.
+ */
+export const createPipelineTemplateInput = z.object({
+  name: pipelineTemplateName,
+  stages: templateStages,
+});
+
+/** Saving a Pipeline Template (E3-S1): the whole template, replacing its name, Stages and Tasks, with the version the client loaded. */
+export const updatePipelineTemplateInput = z.object({
+  name: pipelineTemplateName,
+  stages: templateStages,
+  version,
+});
+
+/** Archiving or restoring a Pipeline Template (E3-S1): only the version the client loaded. */
+export const pipelineTemplateStatusInput = z.object({ version });

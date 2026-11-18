@@ -12,6 +12,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { PROSPECT_CATEGORIES } from "@/lib/validation";
@@ -146,5 +147,65 @@ export const prospect = pgTable(
       "prospect_location_indonesia",
       sql`${table.lat} is null or (${table.lat} between -11 and 6 and ${table.lng} between 95 and 141)`,
     ),
+  ],
+);
+
+/**
+ * A reusable, ordered list of Stages, each with its Task checklist (E3-S1). A Pipeline is started
+ * from one and copies its Stages and Tasks (E3-S3), so later edits never change running Pipelines
+ * (EC21). Archived (archived_at) instead of deleted while a Pipeline uses it. name_key is the name
+ * trimmed, whitespace-collapsed and lower-cased (pipelineTemplateNameKey); two active templates
+ * cannot share it. Migration 0004 seeds the default template "Umum" into a fresh database.
+ */
+export const pipelineTemplate = pgTable(
+  "pipeline_template",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pipeline_template_active_name_key_idx").on(table.nameKey).where(sql`${table.archivedAt} is null`),
+    check("pipeline_template_name_length", sql`char_length(${table.name}) between 1 and 100`),
+  ],
+);
+
+/** One Stage of a Pipeline Template, at a 1-based position (E3-S1). Deleted with its template. */
+export const templateStage = pgTable(
+  "template_stage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => pipelineTemplate.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+  },
+  (table) => [
+    uniqueIndex("template_stage_template_id_position_idx").on(table.templateId, table.position),
+    check("template_stage_position", sql`${table.position} >= 1`),
+    check("template_stage_name_length", sql`char_length(${table.name}) between 1 and 60`),
+  ],
+);
+
+/** One Task name of a template Stage, at a 1-based position (E3-S1). Deleted with its Stage. */
+export const templateTask = pgTable(
+  "template_task",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stageId: uuid("stage_id")
+      .notNull()
+      .references(() => templateStage.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+  },
+  (table) => [
+    uniqueIndex("template_task_stage_id_position_idx").on(table.stageId, table.position),
+    check("template_task_position", sql`${table.position} >= 1`),
+    check("template_task_name_length", sql`char_length(${table.name}) between 1 and 120`),
   ],
 );

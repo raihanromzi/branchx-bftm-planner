@@ -43,6 +43,8 @@ Every error has one shape. `fields` is present only on validation errors, with o
 | `422` | `invalid_state` (or a more specific code) | A forbidden state transition. The endpoint documents it. |
 | `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer set on a record is inactive or does not exist. See [the rule](#rule-only-an-active-funding-officer-can-be-assigned). |
 | `422` | `prospect_archived` | An edit to an archived Prospect. See [Prospects](#prospects). |
+| `409` | `template_name_taken`, `template_in_use` | Pipeline Templates: another active template has the name, or a delete of a template a Pipeline uses. See [Pipeline Templates](#pipeline-templates). |
+| `422` | `template_archived`, `last_template`, `template_archived_cannot_start`, `template_not_found` | Pipeline Templates: an edit to an archived template, archiving or deleting the only active one, or starting a Pipeline from an archived or unknown one. |
 | `500` | `internal` | Unexpected. No details are returned; they are logged on the server. |
 
 Every message is in Bahasa Indonesia and can be shown to the Admin as it is. Error responses are sent with `Cache-Control: no-store`.
@@ -409,6 +411,182 @@ Archive sets `archivedAt`: the Prospect leaves the default list but can still be
 | `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
 
 Later stories add rules to archiving, all in the one archive transaction: E3-S3 refuses to archive a Prospect with an open Pipeline (EC19), and E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
+
+## Pipeline Templates
+
+Implemented in E3-S1. A Pipeline Template is a name and an ordered list of Stages, each with an ordered checklist of Task names (zero or more). A Pipeline copies its template's Stages and Tasks when it starts (E3-S3), so **editing a template changes only new Pipelines** (EC21). A template that a Pipeline uses can be archived but not deleted; one that no Pipeline uses can be deleted. This is the only `DELETE` in the app.
+
+Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations are refused cross-origin (`403 forbidden_origin`). An `:id` that is unknown or not a UUID is `404 not_found`. Responses are sent with `Cache-Control: no-store`.
+
+### The default template
+
+A fresh database has one template, **"Umum"**, seeded by the migration `drizzle/0004_pipeline_template.sql` (so production gets it from `vercel-build`'s `db:migrate` too). It is inserted only when no template exists. Its Stages and starter Tasks (PRD open question 4, approved at the PRD gate on 2026-11-18):
+
+| # | Stage | Tasks |
+|---|-------|-------|
+| 1 | Identifikasi | Kumpulkan data Prospect; Tentukan Kontak |
+| 2 | Pendekatan | Hubungi Kontak; Jadwalkan kunjungan pertama |
+| 3 | Presentasi | Siapkan materi; Presentasi ke pengambil keputusan; Kirim proposal |
+| 4 | Negosiasi | Bahas jumlah rekening; Sepakati jadwal pembukaan |
+| 5 | Pembukaan Rekening | Siapkan formulir; Kumpulkan dokumen pendukung |
+
+It is an ordinary template: it can be edited, archived, restored or deleted under the same rules.
+
+### The record
+
+```json
+{
+  "id": "3c9e…",
+  "name": "Umum",
+  "archived": false,
+  "archivedAt": null,
+  "pipelineCount": 0,
+  "version": 1,
+  "createdAt": "2026-11-19T02:15:00.000Z",
+  "updatedAt": "2026-11-19T02:15:00.000Z",
+  "stages": [
+    {
+      "id": "a1…",
+      "position": 1,
+      "name": "Identifikasi",
+      "tasks": [
+        { "id": "b1…", "position": 1, "name": "Kumpulkan data Prospect" },
+        { "id": "b2…", "position": 2, "name": "Tentukan Kontak" }
+      ]
+    }
+  ]
+}
+```
+
+`position` starts at 1 and follows the order sent. **Stage and Task ids change on every save** (`PUT` replaces them all); nothing refers to them, because Pipelines copy Stages and Tasks. `pipelineCount` is the number of Pipelines (open or closed) started from the template: always `0` until Pipelines exist (E3-S3 fills it). The editor offers "Hapus" only when it is `0`.
+
+| Field | Rules |
+|-------|-------|
+| `name` | Required. Free text with at most **100** characters: trimmed; "Nama template wajib diisi." when missing or blank; "Maksimal 100 karakter."; the customer-number guard. **Unique among active templates**, ignoring case and repeated spaces (`pipelineTemplateNameKey`): otherwise `409 template_name_taken` (below). An archived template's name can be reused. |
+| `stages` | Required: **1 to 30** Stages, in order. Missing, `null` or `[]`: `fields.stages` = "Tambahkan minimal satu Stage." (EC3). More than 30: "Maksimal 30 Tahap." |
+| `stages.N.name` | Required. At most **60** characters: "Nama Tahap wajib diisi." when missing or blank; "Maksimal 60 karakter."; the customer-number guard. Two Stages may share a name. |
+| `stages.N.tasks` | Optional: **0 to 30** Tasks, in order; missing or `null` is `[]`. More than 30: `fields["stages.N.tasks"]` = "Maksimal 30 Tugas per Tahap." |
+| `stages.N.tasks.M.name` | Required. At most **120** characters: "Nama Tugas wajib diisi." when missing or blank; "Maksimal 120 karakter."; the customer-number guard. |
+| `archived`, `archivedAt` | Set by the server: changed only by archive and restore. |
+| `version` | See [Optimistic concurrency](#optimistic-concurrency-version). |
+
+**Field error keys** are the zod path joined with `.`, with **0-based** indexes into the arrays sent: `name`, `stages`, `stages.2.name`, `stages.1.tasks`, `stages.1.tasks.0.name`. For example:
+
+```json
+{ "error": { "code": "validation", "message": "Periksa kembali isian yang ditandai.",
+  "fields": { "stages.1.name": "Nama Tahap wajib diisi.", "stages.1.tasks.0.name": "Nama Tugas wajib diisi." } } }
+```
+
+Unknown keys (including `id` or `position` on Stages and Tasks) are ignored. The database also enforces the name lengths and unique positions.
+
+The zod schemas are exported from `@/lib/validation` for inline form checks: `createPipelineTemplateInput`, `updatePipelineTemplateInput`, `pipelineTemplateStatusInput`, `templateStageInput`, `templateTaskInput`, `pipelineTemplateNameKey`, the limits `PIPELINE_TEMPLATE_NAME_MAX`, `STAGE_NAME_MAX`, `TASK_NAME_MAX`, `STAGES_MAX`, `TASKS_PER_STAGE_MAX`, and the messages.
+
+### `GET /api/pipeline-templates`
+
+Every template, archived ones included: **active ones first, then archived ones**, each group sorted by name ignoring case. No paging; at most 200.
+
+```json
+{ "items": [ { "id": "3c9e…", "name": "Umum", "stageCount": 5, "pipelineCount": 0, "archived": false, "version": 1, "updatedAt": "2026-11-19T02:15:00.000Z" } ] }
+```
+
+| Status | Body |
+|--------|------|
+| `200` | `{ "items": [ <row>, … ] }` |
+
+### `POST /api/pipeline-templates`
+
+Adds a template. Needs an `Idempotency-Key` header (scope `pipeline-template.create`).
+
+```json
+{
+  "name": "Sekolah",
+  "stages": [
+    { "name": "Identifikasi", "tasks": [ { "name": "Kumpulkan data Prospect" } ] },
+    { "name": "Presentasi" }
+  ]
+}
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `201` | The record | Created. |
+| `200` | The same record, read again | A repeat with the same `Idempotency-Key`. Nothing new is created. |
+| `400` | `validation` with `fields`, `invalid_json`, or `idempotency_key` | Bad input or a missing or malformed key. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `409` | `{ "error": { "code": "template_name_taken", "message": "Nama template sudah dipakai.", "fields": { "name": "Nama template sudah dipakai." } } }` | Another active template has the name. The key is not kept. |
+| `422` | `idempotency_key_reused` | The key was used for a different kind of create. |
+
+### `GET /api/pipeline-templates/:id`
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record | Found. An archived template is returned too, with `archived: true` (the editor opens it read-only with "Pulihkan"). |
+| `404` | `not_found` | Unknown id. |
+
+### `PUT /api/pipeline-templates/:id`
+
+**Saves the whole template**: the body has the same `name` and `stages` as a create, plus `version`. The Stages and Tasks sent replace all of the template's Stages and Tasks, in the order sent. So adding, renaming, reordering and removing Stages and Tasks is all one `PUT` of the edited list.
+
+```json
+{ "name": "Sekolah", "stages": [ { "name": "Presentasi", "tasks": [] }, { "name": "Identifikasi" } ], "version": 3 }
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `version` increased by 1, new Stage and Task ids | Saved. |
+| `400` | `validation` with `fields` (including `stages`: "Tambahkan minimal satu Stage." and `version`), or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The template changed since the client loaded it. |
+| `409` | `template_name_taken` (with `fields.name`) | Another active template has the name. |
+| `422` | `{ "error": { "code": "template_archived", "message": "Template ini diarsipkan. Pulihkan dulu untuk mengubahnya." } }` | The template is archived. Restore it first. |
+
+### `POST /api/pipeline-templates/:id/archive` and `POST /api/pipeline-templates/:id/restore`
+
+Archive sets `archivedAt`: the template can no longer start a Pipeline (see the rule below), and Pipelines already started from it are unaffected. Restore clears it.
+
+```json
+{ "version": 2 }
+```
+
+**Idempotent:** when the template is already in the requested state, the answer is `200` with the record unchanged: nothing is written, `version` does not change, and the sent `version` is not checked.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, with `archived` changed and `version` increased by 1, or unchanged (see above) | Done. |
+| `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The state has to change, and the template changed since the client loaded it. |
+| `409` | `template_name_taken` (with `fields.name`) | Restore only: an active template has taken the name meanwhile. Rename that one first. |
+| `422` | `{ "error": { "code": "last_template", "message": "Harus ada minimal satu template aktif." } }` | Archive only: this is the only active template. A new Pipeline always needs one. |
+
+### `DELETE /api/pipeline-templates/:id`
+
+Deletes a template that no Pipeline uses, with its Stages and Tasks. No body. Archived or active templates can be deleted.
+
+| Status | Body | When |
+|--------|------|------|
+| `204` | None | Deleted. A repeat answers `404`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `{ "error": { "code": "template_in_use", "message": "Template ini dipakai Pipeline. Arsipkan saja." } }` | A Pipeline uses it (`pipelineCount` > 0, counted from Pipelines once E3-S3 adds them). Archive it instead (EC21). |
+| `422` | `last_template` ("Harus ada minimal satu template aktif.") | It is active and the only active template. |
+
+### Rule: only an active template can start a Pipeline
+
+For E3-S3. Starting a Pipeline needs a template that exists and is not archived. Otherwise nothing is saved and the response is one of:
+
+| Status | Body | When |
+|--------|------|------|
+| `422` | `{ "error": { "code": "template_archived_cannot_start", "message": "Template ini diarsipkan dan tidak bisa dipakai untuk Pipeline baru." } }` | The template is archived. |
+| `422` | `{ "error": { "code": "template_not_found", "message": "Template tidak ditemukan." } }` | No template has that id (or it is not a UUID). |
+
+Server side, from `@/server/pipeline-templates`, inside the transaction that starts the Pipeline:
+
+- `assertTemplateCanStartPipeline(tx, templateId)` applies the rule above and locks the template's row `FOR SHARE`, so an archive or delete running at the same moment waits for the start to commit.
+- `getTemplateForSnapshot(tx, templateId)` returns `{ id, name, stages: [ { position, name, tasks: [ { position, name } ] } ] }`, in order, to copy into `pipeline_stage` and `pipeline_task`.
+- `countPipelinesUsingTemplate(db, templateId)` and the list's `pipelineCount` read from one internal function (`pipelineCounts`), which returns 0 until E3-S3 makes it count `pipeline.template_id`. E3-S3 should also give `pipeline.template_id` `ON DELETE restrict`, so the database backs the delete rule.
 
 ## Health
 

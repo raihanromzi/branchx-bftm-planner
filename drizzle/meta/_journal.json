@@ -29,6 +29,13 @@
       "when": 1795027377903,
       "tag": "0003_prospect",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795042680092,
+      "tag": "0004_pipeline_template",
+      "breakpoints": true
     }
   ]
 }

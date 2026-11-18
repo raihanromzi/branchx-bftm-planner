@@ -56,7 +56,7 @@ prospect (name, name_key, category enum, address, lat, lng, contact_name, contac
           index: name_key (lower, collapsed spaces) for duplicate check and search;
           trigram index on name for search
 
-pipeline_template (name, archived_at)
+pipeline_template (name, name_key, archived_at)   unique name_key among active (archived_at null); default "Umum" seeded by migration 0004
 template_stage (template_id → pipeline_template, position, name)
 template_task (stage_id → template_stage, position, name)
 

@@ -45,6 +45,9 @@ export default async function globalSetup() {
       where name ~ ${E2E_NAME_PATTERN}
          or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})`;
     await sql`delete from funding_officer where name ~ ${E2E_NAME_PATTERN}`;
+    // Pipeline Templates that e2e runs created (E3-S1); their Stages and Tasks go with them (cascade).
+    // Nothing points to a template yet; when Pipelines do (E3-S3), delete their e2e Pipelines first.
+    await sql`delete from pipeline_template where name ~ ${E2E_NAME_PATTERN}`;
   } finally {
     await sql.end();
   }
