@@ -53,3 +53,19 @@ export function formatDateTime(value: DateInput): string {
 export function formatMonth(value: DateInput): string {
   return monthFormat.format(toDate(value));
 }
+
+/**
+ * A stored phone number ("+6281234567890") in the local format people dial: "0812-3456-7890".
+ * The first four digits form one group; the rest is split in two, the longer half first
+ * ("+62812345678" → "0812-345-678", "+628123456789" → "0812-3456-789"). Anything that is not a
+ * stored +62 number is returned unchanged.
+ */
+export function formatPhone(value: string): string {
+  const match = /^\+62(\d{9,13})$/.exec(value);
+  if (!match) return value;
+  const local = `0${match[1]}`;
+  const head = local.slice(0, 4);
+  const rest = local.slice(4);
+  const split = Math.ceil(rest.length / 2);
+  return `${head}-${rest.slice(0, split)}-${rest.slice(split)}`;
+}

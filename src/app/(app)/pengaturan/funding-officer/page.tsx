@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { FundingOfficerScreen } from "@/components/funding-officers/funding-officer-screen";
 
-// Placeholder inside the app shell (E0-S4). Story E1-S2 builds this screen.
+// Pengaturan → Funding Officer (E1-S2). The app shell's AdminGate has already checked the session; the
+// screen reads the list from GET /api/funding-officers on the client (ADR 0003, client-side reads).
 export const metadata: Metadata = { title: "Funding Officer" };
 
 export default function FundingOfficerSettingsPage() {
-  return (
-    <PlaceholderPage
-      title="Funding Officer"
-      description="Daftar Funding Officer akan tampil di sini. Layar ini sedang disiapkan."
-    />
-  );
+  return <FundingOfficerScreen />;
 }

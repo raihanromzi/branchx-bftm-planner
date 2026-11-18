@@ -23,7 +23,7 @@ type FieldErrors = { email?: string; password?: string };
 type FormAlert = { message: string; id: number };
 
 const inputClass =
-  "h-12 px-3 text-base md:text-base focus-visible:ring-0 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring read-only:cursor-progress";
+  "h-12 px-3 text-base md:text-base read-only:cursor-progress";
 
 /**
  * The sign-in form: POST /api/auth/sign-in, then on to the page asked for. `next` is the raw query value;
@@ -168,7 +168,7 @@ export function SignInForm({ next }: { next?: string }) {
         </Alert>
       )}
 
-      <Button type="submit" disabled={pending} className="mt-1 h-12 w-full text-base focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress">
+      <Button type="submit" disabled={pending} className="mt-1 h-12 w-full text-base disabled:cursor-progress">
         {pending ? "Memproses…" : "Masuk"}
       </Button>
     </form>

@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { loadEnvConfig } from "@next/env";
 import postgres from "postgres";
 import { E2E_ADMIN } from "./admin";
+import { E2E_NAME_PATTERN } from "./funding-officers";
 
 const run = promisify(execFile);
 
@@ -34,6 +35,10 @@ export default async function globalSetup() {
   const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
   try {
     await sql`delete from sign_in_attempt where email = ${E2E_ADMIN.email}`;
+    // Funding Officers that earlier e2e runs created, and only those: every one has the e2e marker at the
+    // end of its name (support/funding-officers.ts). The API never deletes a Funding Officer (EC22), so
+    // without this they pile up in the dev database until the list's 200-row cap hides new ones.
+    await sql`delete from funding_officer where name ~ ${E2E_NAME_PATTERN}`;
   } finally {
     await sql.end();
   }
