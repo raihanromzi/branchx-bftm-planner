@@ -1,7 +1,7 @@
 ---
 feature: planner-v1
 title: BFTM Planner v1
-phase: architecture
+phase: design
 branch: feature/planner-v1
 started: 2026-11-18
 updated: 2026-11-18
@@ -19,7 +19,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - Glossary: GLOSSARY.md (approved)
 - Brief: docs/product/briefs/planner-v1.md (approved)
 - Epic and stories: docs/product/backlog.md, E0 to E6 (approved)
-- ADRs:
+- ADRs: docs/adr/0001 to 0005; docs/architecture.md
 - Designs:
 - QA reports:
 - Pull request:
@@ -35,6 +35,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-18 brief gate: the user approved the brief, including all proposed edge-case behaviours.
 - 2026-11-18 backlog: 7 epics (E0 to E6), 27 stories, 119 points. All 45 edge cases traced. E0-S1 is mostly in place from project setup. Waiting for approval.
 - 2026-11-18 backlog gate: the user approved the stories as written.
+- 2026-11-18 architecture: ADR 0001 (no customer data) was written from the hard rule. The user picked the recommended option for each decision: ADR 0002, sign-in with scrypt and database sessions, no auth library; ADR 0003, JSON Route Handlers over a service layer; ADR 0004, private Vercel Blob uploaded through the server; ADR 0005, Postgres in Docker for local development and tests. docs/architecture.md written.
 
 ## Blocked on
 
