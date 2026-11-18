@@ -50,10 +50,11 @@ The app was scaffolded during project setup on 2026-11-18: Next.js 16, React 19,
 | `npm run dev` | Start the dev server on port 3000 |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `next typegen && tsc --noEmit` |
-| `npm test` | Vitest, for `tests/unit/` |
+| `npm test` | Vitest, for `tests/unit/`. Needs the test database: `npm run db:up` locally (it uses `TEST_DATABASE_URL`, default `bftm_test` on localhost), the service container in CI. |
 | `npm run test:e2e` | Playwright, for `tests/e2e/`, at the `mobile`, `tablet` and `desktop` viewports. It starts the dev server itself. First time on a machine: `npx playwright install chromium`. |
 | `npm run db:generate` | Generate a Drizzle migration from `src/db/schema.ts` into `drizzle/` |
-| `npm run db:migrate` | Apply the migrations to `DATABASE_URL` (`scripts/migrate.mts`). It does nothing while there are no migrations. |
+| `npm run db:up` | Start the local Postgres 16 container (`docker-compose.yml`, ADR 0005) with the databases `bftm_dev` and `bftm_test`, and wait until it is healthy. |
+| `npm run db:migrate` | Apply the migrations in `drizzle/` to `DATABASE_URL_UNPOOLED`, falling back to `DATABASE_URL` (`scripts/migrate.mts`). Running it again is a no-op. |
 | `npm run build` | Production build. It needs no runtime secrets. |
 | `npm run vercel-build` | Vercel runs this script on deploy, instead of `build`. It runs `db:migrate` first only when `RUN_MIGRATIONS=true`. Set that in Vercel for Production, and for Preview only when previews have their own Neon branch, so a preview never migrates the production database. |
 
@@ -143,6 +144,8 @@ src/app/                  Next.js App Router pages and layouts
 src/components/ui/        shadcn/ui components
 src/db/schema.ts          Drizzle schema; drizzle/ holds the generated migrations
 scripts/migrate.mts       applies migrations (db:migrate)
+docker-compose.yml        local Postgres 16 for development and tests (db:up, ADR 0005)
+src/server/               server-only modules: db/ client, health/, and one folder per domain module
 playwright.config.ts      the three viewport projects
 vitest.config.ts          unit test config
 docs/product/prd.md       current v1 scope (product-owner)
