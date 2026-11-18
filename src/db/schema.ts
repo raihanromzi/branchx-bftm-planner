@@ -2,7 +2,19 @@
 // ADR 0001: no table or field may hold individual customer data
 // (no account holder names, NIK, account numbers or balances).
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { PROSPECT_CATEGORIES } from "@/lib/validation";
 
 /**
  * Idempotency-Key values sent with create requests (ADR 0003), so a retried create returns
@@ -83,4 +95,56 @@ export const fundingOfficer = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("funding_officer_active_name_idx").on(table.active, sql`lower(${table.name})`)],
+);
+
+/** A Prospect's Category (E2-S1). The UI labels are in PROSPECT_CATEGORY_LABELS. */
+export const prospectCategory = pgEnum("prospect_category", PROSPECT_CATEGORIES);
+
+/**
+ * An institution or venue the team works to open accounts at (E2-S1). Never an account holder
+ * (ADR 0001): the only person stored is one Contact Person (name, role, phone), and the only numbers
+ * are account counts. Never deleted (EC22): archived instead (archived_at), and restorable.
+ * name_key is the name trimmed, whitespace-collapsed and lower-cased (prospectNameKey), maintained by
+ * the service; it drives the duplicate check (EC14), search and the sort by name.
+ */
+export const prospect = pgTable(
+  "prospect",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    // Optional: only the name and the Funding Officer are required (docs/design/E2-S3.md).
+    category: prospectCategory("category"),
+    address: text("address"),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
+    contactName: text("contact_name"),
+    contactRole: text("contact_role"),
+    contactPhone: text("contact_phone"),
+    potentialAccounts: integer("potential_accounts"),
+    fundingOfficerId: uuid("funding_officer_id")
+      .notNull()
+      .references(() => fundingOfficer.id, { onDelete: "restrict" }),
+    note: text("note"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("prospect_name_key_idx").on(table.nameKey, table.id),
+    index("prospect_name_key_trgm_idx").using("gin", sql`${table.nameKey} gin_trgm_ops`),
+    index("prospect_funding_officer_id_idx").on(table.fundingOfficerId),
+    index("prospect_archived_at_idx").on(table.archivedAt),
+    check("prospect_name_length", sql`char_length(${table.name}) between 1 and 150`),
+    check(
+      "prospect_potential_accounts_range",
+      sql`${table.potentialAccounts} is null or ${table.potentialAccounts} between 0 and 100000`,
+    ),
+    check("prospect_location_pair", sql`(${table.lat} is null) = (${table.lng} is null)`),
+    check(
+      "prospect_location_indonesia",
+      sql`${table.lat} is null or (${table.lat} between -11 and 6 and ${table.lng} between 95 and 141)`,
+    ),
+  ],
 );

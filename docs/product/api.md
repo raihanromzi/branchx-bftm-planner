@@ -42,6 +42,7 @@ Every error has one shape. `fields` is present only on validation errors, with o
 | `422` | `idempotency_key_reused` | The key was already used for a different kind of create. Generate a new key. |
 | `422` | `invalid_state` (or a more specific code) | A forbidden state transition. The endpoint documents it. |
 | `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer set on a record is inactive or does not exist. See [the rule](#rule-only-an-active-funding-officer-can-be-assigned). |
+| `422` | `prospect_archived` | An edit to an archived Prospect. See [Prospects](#prospects). |
 | `500` | `internal` | Unexpected. No details are returned; they are logged on the server. |
 
 Every message is in Bahasa Indonesia and can be shown to the Admin as it is. Error responses are sent with `Cache-Control: no-store`.
@@ -250,6 +251,164 @@ Applies to **every create or update that sets a Funding Officer** on a Prospect 
 Records that already have a Funding Officer who is later deactivated are not affected (EC20). An update that does not change the Funding Officer is not checked against this rule.
 
 Server side: call `assertAssignableFundingOfficer(tx, fundingOfficerId)` from `@/server/funding-officers` inside the transaction that writes the record. It locks the Funding Officer's row `FOR SHARE`, so a deactivation running at the same moment waits for that write to commit.
+
+## Prospects
+
+Implemented in E2-S1. A Prospect is an institution or venue the team works to open accounts at. It is never an account holder (ADR 0001): the only person stored is one Contact Person, and the only number is Potential Accounts. A Prospect is never deleted (EC22): there is no `DELETE` endpoint, and `DELETE` on these paths answers `405`. Instead it is archived, and can be restored.
+
+Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations are refused cross-origin (`403 forbidden_origin`). An `:id` that is unknown or not a UUID is `404 not_found`. Responses are sent with `Cache-Control: no-store`.
+
+### The record
+
+```json
+{
+  "id": "0b7e…",
+  "name": "SDN 3 Cibinong",
+  "category": "sekolah",
+  "address": "Jl. Raya Bogor Km 43",
+  "location": { "lat": -6.4817, "lng": 106.854 },
+  "contact": { "name": "Ibu Sri Wahyuni", "role": "Kepala Sekolah", "phone": "+6281234567890" },
+  "potentialAccounts": 350,
+  "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+  "note": "Minta brosur tabungan pelajar.",
+  "archived": false,
+  "archivedAt": null,
+  "version": 1,
+  "createdAt": "2026-11-19T02:15:00.000Z",
+  "updatedAt": "2026-11-19T02:15:00.000Z"
+}
+```
+
+| Field | Rules |
+|-------|-------|
+| `name` | Required. Free text with at most **150** characters: trimmed; "Nama Prospect wajib diisi." when missing or blank; "Maksimal 150 karakter." when longer; the customer-number guard. Stored as typed (after trimming). |
+| `category` | Optional: one of `sekolah`, `pasar`, `perusahaan`, `instansi`, `komunitas`, `lainnya` (labels Sekolah, Pasar, Perusahaan, Instansi, Komunitas, Lainnya; `PROSPECT_CATEGORIES` and `PROSPECT_CATEGORY_LABELS` in `@/lib/validation`), or `null`. Missing or `null` is stored as `null`, and responses (record and list rows) carry `"category": null`. Any other value, including `""`, is "Isian tidak valid." Only the name and the Funding Officer are required (docs/design/E2-S3.md). |
+| `fundingOfficerId` | Required on create (`fundingOfficer` in responses). Must be an active Funding Officer: see [the rule](#rule-only-an-active-funding-officer-can-be-assigned) (`422`). |
+| `address` | Optional free text, at most 500 characters; blank or `null` is stored as `null`. |
+| `location` | Optional: `{ "lat": number, "lng": number }` or `null`. Both are required in the object (`fields["location.lat"]` / `fields["location.lng"]`: "Wajib diisi.", or "Isian tidak valid." for a non-number). Outside Indonesia's bounding box (latitude −11 to 6, longitude 95 to 141, inclusive): `fields.location` = "Lokasi di luar Indonesia." (EC13). |
+| `contact` | Optional: `{ "name", "role", "phone" }`, each optional (missing, `null` or blank is `null`). `name` and `role`: free text, at most 100 characters, with the customer-number guard. `phone`: the shared phone rule, stored as `+62…`. Errors are keyed `contact.name`, `contact.role`, `contact.phone`. Responses always carry the object, with `null` fields when empty. |
+| `potentialAccounts` | Optional: an integer from 0 to 100,000, or `null`. A decimal, negative, larger number or a string ("10"): "Potensi rekening harus bilangan bulat 0 sampai 100.000." (EC10). |
+| `note` | Optional free text, at most 500 characters, with the customer-number guard. |
+| `archived`, `archivedAt` | Set by the server: changed only by archive and restore. |
+| `version` | See [Optimistic concurrency](#optimistic-concurrency-version). |
+
+Any other key in the body (for example an account holder's name, NIK or account number) is ignored and never stored. The database also enforces the name length, the Potential Accounts range, and that `lat`/`lng` are both set or both empty and inside the box.
+
+The zod schemas are exported from `@/lib/validation` for inline form checks: `createProspectInput`, `updateProspectInput`, `prospectStatusInput`, `prospectListQuery`, `prospectLocation`, `prospectContact`, `potentialAccounts`, `prospectNameKey`, and the constants `PROSPECT_NAME_MAX`, `POTENTIAL_ACCOUNTS_MAX`, `INDONESIA_BOUNDS` and the messages.
+
+### Matching names (`duplicates`, EC14)
+
+Two names match when they are equal after trimming, collapsing runs of whitespace to one space and lower-casing (`prospectNameKey`): "SDN  3 Cibinong " matches "sdn 3 cibinong". A match never blocks a save, because two branches can share a name. Create and update answer `{ "prospect": <record>, "duplicates": [ { "id", "name" }, … ] }`, where `duplicates` lists the **other, non-archived** Prospects with a matching name, sorted by name, at most 20. The Prospect itself is never listed. The frontend shows the warning after the save; nothing is repeated automatically.
+
+### `GET /api/prospects`
+
+A page of Prospects, **sorted by name** ignoring case and repeated spaces. All filtering is on the server. Query parameters (blank counts as missing):
+
+| Parameter | Meaning |
+|-----------|---------|
+| `q` | Search: matches anywhere in the name, ignoring case and repeated spaces. `%`, `_` and `\` match themselves. At most 150 characters. |
+| `category` | One Category value. Prospects without a Category never match it. |
+| `fundingOfficerId` | A Funding Officer's id (a UUID). |
+| `archived` | `0` (default): archived Prospects are left out. `1`: archived Prospects are **included** alongside the others, each with `archived: true` (the "Tampilkan arsip" toggle). |
+| `noLocation` | `1`: only Prospects without a location. `0` (default): no filter. |
+| `page` | 1-based, default `1`. A page past the end answers an empty `items` with the real `total`. |
+
+The Stage filter is added by E3-S3. Each row:
+
+```json
+{
+  "id": "0b7e…",
+  "name": "SDN 3 Cibinong",
+  "category": "sekolah",
+  "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+  "hasLocation": true,
+  "potentialAccounts": 350,
+  "archived": false,
+  "openPipeline": null
+}
+```
+
+`openPipeline` is always `null` until E3-S3 fills it with the open Pipeline's Stage.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | `{ "items": [ <row>, … ], "page": 1, "pageSize": 50, "total": 1248 }` | Always 50 per page. |
+| `400` | `validation` with `fields.<parameter>` | A parameter is invalid (for example `page=0`, an unknown `category`, a `fundingOfficerId` that is not a UUID, `archived=yes`). |
+
+Measured with 2,000 Prospects on local Postgres 16: every query shape answers in a few milliseconds (budget 500 ms, EC6).
+
+### `POST /api/prospects`
+
+Adds a Prospect. Needs an `Idempotency-Key` header (scope `prospect.create`).
+
+```json
+{
+  "name": "SDN 3 Cibinong",
+  "category": "sekolah",
+  "fundingOfficerId": "6f1c…",
+  "address": "Jl. Raya Bogor Km 43",
+  "location": { "lat": -6.4817, "lng": 106.854 },
+  "contact": { "name": "Ibu Sri Wahyuni", "role": "Kepala Sekolah", "phone": "0812 3456 7890" },
+  "potentialAccounts": 350,
+  "note": "Minta brosur tabungan pelajar."
+}
+```
+
+| Status | Body | When |
+|--------|------|------|
+| `201` | `{ "prospect": <record>, "duplicates": [ … ] }` | Created. |
+| `200` | The same shape, read again (duplicates recomputed) | A repeat with the same `Idempotency-Key`. Nothing new is created. |
+| `400` | `validation` with `fields`, `invalid_json`, or `idempotency_key` | Bad input or a missing or malformed key. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer cannot be assigned. The key is not kept, so a corrected retry with it is allowed. |
+| `422` | `idempotency_key_reused` | The key was used for a different kind of create. |
+
+### `GET /api/prospects/:id`
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record | Found. **An archived Prospect is returned too**, with `archived: true` and `archivedAt` set (EC40): the detail page opens it read-only with a restore action. |
+| `404` | `not_found` | Unknown id. |
+
+### `PATCH /api/prospects/:id`
+
+Changes any subset of the fields; `version` is required. A field left out is unchanged. `null` clears an optional field: `"location": null` removes the location, `"category": null` removes the Category. A `contact` object replaces all three Contact Person fields (a field missing from it becomes `null`); `"contact": null` clears them.
+
+```json
+{ "fundingOfficerId": "9a2d…", "location": null, "version": 3 }
+```
+
+Changing the Funding Officer changes only the Prospect (EC26): Pipelines and Activities keep theirs. The Funding Officer rule is checked only when `fundingOfficerId` changes, so a Prospect whose Funding Officer was later deactivated can still be edited.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | `{ "prospect": <record>, "duplicates": [ … ] }`, `version` increased by 1 | Saved. `duplicates` is computed only when the name changed; otherwise `[]`. |
+| `400` | `validation` with `fields`, or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The record changed since the client loaded it. |
+| `422` | `{ "error": { "code": "prospect_archived", "message": "Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya." } }` | The Prospect is archived. Restore it first. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The new Funding Officer cannot be assigned. |
+
+### `POST /api/prospects/:id/archive` and `POST /api/prospects/:id/restore`
+
+Archive sets `archivedAt`: the Prospect leaves the default list but can still be opened by id and restored. Restore clears it.
+
+```json
+{ "version": 2 }
+```
+
+**Idempotent:** when the Prospect is already in the requested state, the answer is `200` with the record unchanged: nothing is written, `version` does not change, and the sent `version` is not checked.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record (not wrapped), with `archived` changed and `version` increased by 1, or unchanged (see above) | Done. |
+| `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
+
+Later stories add rules to archiving, all in the one archive transaction: E3-S3 refuses to archive a Prospect with an open Pipeline (EC19), and E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
 
 ## Health
 

@@ -38,6 +38,12 @@ export default async function globalSetup() {
     // Funding Officers that earlier e2e runs created, and only those: every one has the e2e marker at the
     // end of its name (support/funding-officers.ts). The API never deletes a Funding Officer (EC22), so
     // without this they pile up in the dev database until the list's 200-row cap hides new ones.
+    // Prospects go first: a Funding Officer cannot be deleted while a Prospect points to it (restrict).
+    // Removed: Prospects with the marker, and any Prospect assigned to a marked (e2e) Funding Officer.
+    await sql`
+      delete from prospect
+      where name ~ ${E2E_NAME_PATTERN}
+         or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})`;
     await sql`delete from funding_officer where name ~ ${E2E_NAME_PATTERN}`;
   } finally {
     await sql.end();

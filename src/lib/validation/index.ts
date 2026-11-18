@@ -70,9 +70,13 @@ function textRules(schema: z.ZodString, max: number) {
     .refine((value) => !containsCustomerNumber(value), { error: CUSTOMER_NUMBER_MESSAGE });
 }
 
-/** Required free text: trimmed, not empty, at most `max` characters (default 500), no NIK or account numbers. */
-export function freeText({ max = FREE_TEXT_MAX }: { max?: number } = {}) {
-  return textRules(z.string().trim().min(1, { error: REQUIRED_MESSAGE }), max);
+/**
+ * Required free text: trimmed, not empty, at most `max` characters (default 500), no NIK or account numbers.
+ * `requiredMessage` replaces "Wajib diisi." when the value is missing or blank.
+ */
+export function freeText({ max = FREE_TEXT_MAX, requiredMessage = REQUIRED_MESSAGE }: { max?: number; requiredMessage?: string } = {}) {
+  const base = z.string({ error: (issue) => (issue.input === undefined ? requiredMessage : INVALID_MESSAGE) });
+  return textRules(base.trim().min(1, { error: requiredMessage }), max);
 }
 
 /** Optional free text: same rules; missing, null or blank becomes null. */
@@ -129,3 +133,149 @@ export const updateFundingOfficerInput = z.object({
 
 /** Deactivating or reactivating a Funding Officer (E1-S1): only the version the client loaded. */
 export const fundingOfficerStatusInput = z.object({ version });
+
+/** An optional phone number: missing, null or blank becomes null; otherwise output as "+62…". */
+export const optionalPhone = z
+  .string()
+  .nullish()
+  .transform((value, ctx) => {
+    if (value === null || value === undefined || value.trim() === "") return null;
+    const normalized = normalizePhone(value);
+    if (normalized === null) {
+      ctx.addIssue({ code: "custom", message: PHONE_MESSAGE });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+// Prospects (E2-S1). A Prospect is an institution or venue, never an account holder (ADR 0001).
+
+/** Longest Prospect name (E2-S1 criterion 1, EC7). */
+export const PROSPECT_NAME_MAX = 150;
+/** Longest Contact Person name and role. */
+export const CONTACT_TEXT_MAX = 100;
+/** Potential Accounts range (E2-S1 criterion 2, EC10). */
+export const POTENTIAL_ACCOUNTS_MAX = 100_000;
+/** Indonesia's bounding box (E2-S1 criterion 3, EC13). Inclusive. */
+export const INDONESIA_BOUNDS = { minLat: -11, maxLat: 6, minLng: 95, maxLng: 141 } as const;
+
+export const PROSPECT_NAME_REQUIRED_MESSAGE = "Nama Prospect wajib diisi.";
+export const POTENTIAL_ACCOUNTS_MESSAGE = "Potensi rekening harus bilangan bulat 0 sampai 100.000.";
+export const LOCATION_OUTSIDE_INDONESIA_MESSAGE = "Lokasi di luar Indonesia.";
+
+/** The Category values the API sends and accepts, with their UI labels. */
+export const PROSPECT_CATEGORIES = ["sekolah", "pasar", "perusahaan", "instansi", "komunitas", "lainnya"] as const;
+export type ProspectCategory = (typeof PROSPECT_CATEGORIES)[number];
+export const PROSPECT_CATEGORY_LABELS: Record<ProspectCategory, string> = {
+  sekolah: "Sekolah",
+  pasar: "Pasar",
+  perusahaan: "Perusahaan",
+  instansi: "Instansi",
+  komunitas: "Komunitas",
+  lainnya: "Lainnya",
+};
+
+/**
+ * The key two Prospect names are compared by (EC14) and searched on: trimmed, runs of whitespace
+ * collapsed to one space, lower-cased. "SDN  3 Cibinong " and "sdn 3 cibinong" share a key.
+ */
+export function prospectNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+const prospectName = freeText({ max: PROSPECT_NAME_MAX, requiredMessage: PROSPECT_NAME_REQUIRED_MESSAGE });
+const prospectCategory = z.enum(PROSPECT_CATEGORIES, {
+  error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : INVALID_MESSAGE),
+});
+const fundingOfficerId = z.string().trim().min(1, { error: REQUIRED_MESSAGE });
+
+/** A location: both latitude and longitude, inside Indonesia's bounding box. */
+export const prospectLocation = z
+  .object({ lat: z.number(), lng: z.number() })
+  .refine(
+    ({ lat, lng }) =>
+      lat >= INDONESIA_BOUNDS.minLat &&
+      lat <= INDONESIA_BOUNDS.maxLat &&
+      lng >= INDONESIA_BOUNDS.minLng &&
+      lng <= INDONESIA_BOUNDS.maxLng,
+    { error: LOCATION_OUTSIDE_INDONESIA_MESSAGE },
+  );
+
+/** The Contact Person: each of name, role and phone is optional. Unknown keys are dropped. */
+export const prospectContact = z.object({
+  name: optionalFreeText({ max: CONTACT_TEXT_MAX }),
+  role: optionalFreeText({ max: CONTACT_TEXT_MAX }),
+  phone: optionalPhone,
+});
+
+/** Potential Accounts: an integer from 0 to 100,000. */
+export const potentialAccounts = z
+  .number({ error: POTENTIAL_ACCOUNTS_MESSAGE })
+  .int({ error: POTENTIAL_ACCOUNTS_MESSAGE })
+  .min(0, { error: POTENTIAL_ACCOUNTS_MESSAGE })
+  .max(POTENTIAL_ACCOUNTS_MAX, { error: POTENTIAL_ACCOUNTS_MESSAGE });
+
+const nullContact = { name: null, role: null, phone: null };
+
+/**
+ * Adding a Prospect (E2-S1). Required: name and fundingOfficerId (docs/design/E2-S3.md). Everything
+ * else, Category included, is optional and stored as null when missing. Unknown keys (such as an account holder's details) are dropped.
+ */
+export const createProspectInput = z.object({
+  name: prospectName,
+  category: prospectCategory.nullish().transform((value) => value ?? null),
+  fundingOfficerId,
+  address: optionalFreeText(),
+  location: prospectLocation.nullish().transform((value) => value ?? null),
+  contact: prospectContact.nullish().transform((value) => value ?? nullContact),
+  potentialAccounts: potentialAccounts.nullish().transform((value) => value ?? null),
+  note: optionalFreeText(),
+});
+
+/**
+ * Editing a Prospect (E2-S1): any subset of the fields, with the version the client loaded. A field
+ * left out is unchanged; null clears an optional field (location: null removes the location). A
+ * `contact` object replaces all three Contact Person fields.
+ */
+export const updateProspectInput = z.object({
+  name: prospectName.optional(),
+  category: prospectCategory.nullable().optional(),
+  fundingOfficerId: fundingOfficerId.optional(),
+  address: optionalFreeText().optional(),
+  location: prospectLocation.nullable().optional(),
+  contact: prospectContact
+    .nullable()
+    .transform((value) => value ?? nullContact)
+    .optional(),
+  potentialAccounts: potentialAccounts.nullable().optional(),
+  note: optionalFreeText().optional(),
+  version,
+});
+
+/** Archiving or restoring a Prospect (E2-S1): only the version the client loaded. */
+export const prospectStatusInput = z.object({ version });
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const flag = z.enum(["0", "1"]).default("0").transform((value) => value === "1");
+
+/**
+ * The query string of GET /api/prospects (E2-S1 criterion 4). Blank values count as missing.
+ * archived=1 includes archived Prospects alongside the others; the default leaves them out.
+ */
+export const prospectListQuery = z.preprocess(
+  (value) =>
+    Object.fromEntries(
+      Object.entries(value as Record<string, string>).filter(([, item]) => typeof item === "string" && item.trim() !== ""),
+    ),
+  z.object({
+    q: z
+      .string()
+      .max(PROSPECT_NAME_MAX, { error: maxLengthMessage(PROSPECT_NAME_MAX) })
+      .optional(),
+    category: prospectCategory.optional(),
+    fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
+    archived: flag,
+    noLocation: flag,
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+  }),
+);

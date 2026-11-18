@@ -111,7 +111,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E2-S1 | As an Admin, I want to create, edit, search, archive and restore Prospects, so that I have one reliable list. | 8 | backend | E1-S1, E0-S6 | Todo |
+| E2-S1 | As an Admin, I want to create, edit, search, archive and restore Prospects, so that I have one reliable list. | 8 | backend | E1-S1, E0-S6 | Verified |
 | E2-S2 | As an Admin, I want a paged Prospect list with search and filters, so that I can find any Prospect fast on my phone. | 5 | frontend | E2-S1, E0-S5 | Todo |
 | E2-S3 | As an Admin, I want a Prospect form with a location picker, so that I can add a Prospect in the field in under a minute. | 5 | frontend | E2-S1, E0-S5 | Todo |
 | E2-S4 | As an Admin, I want a Prospect detail page, so that I see its data, its Pipelines and its Activities in one place. | 3 | frontend | E2-S3, E3-S3, E4-S1 | Todo |
@@ -120,7 +120,7 @@ Release:
 1. A Prospect has: name (required, 1 to 150 characters), Category (Sekolah, Pasar, Perusahaan, Instansi, Komunitas or Lainnya), address, location (optional latitude and longitude), Contact Person (name, role, phone), Potential Accounts, Funding Officer (required, active) and a note. There is no field for an account holder. (EC7, EC9)
 2. Potential Accounts accepts only integers from 0 to 100,000. (EC10)
 3. A location outside Indonesia's bounding box (latitude −11 to 6, longitude 95 to 141) is rejected with "Lokasi di luar Indonesia." (EC13)
-4. The list is paged at 50 rows, sorted by name, and supports search by name and filters by Category, Funding Officer, archived status, "no location" and the Stage of the open Pipeline (template and Stage position), all on the server. It stays under 500 ms with 2,000 Prospects. (EC6)
+4. The list is paged at 50 rows, sorted by name, and supports search by name and filters by Category, Funding Officer, archived status, "no location", all on the server. Each row carries `openPipeline` (null until E3-S3 fills it). The Stage filter moved to E3-S3 #9, because it needs Pipelines. It stays under 500 ms with 2,000 Prospects. (EC6)
 5. Creating or renaming a Prospect whose name matches an existing one (ignoring case and repeated spaces) still saves, and the response lists the matching Prospects. (EC14)
 6. Changing a Prospect's Funding Officer changes only the Prospect. (EC26)
 7. Archived Prospects are excluded from the default list, can still be fetched by ID with `archived: true`, and can be restored. There is no endpoint that deletes a Prospect. (EC22, EC40)
@@ -213,6 +213,7 @@ Release:
 6. Reopening a Won or Lost Pipeline clears its Outcome, Accounts Opened and Won date. It is rejected when the Prospect has another open or On Hold Pipeline. (EC25)
 7. A Pipeline's Funding Officer can be changed separately from its Prospect's. (EC26)
 8. Archiving a Prospect with an open or On Hold Pipeline is rejected with "Tutup atau tunda Pipeline dulu." (EC19)
+9. The Prospect list (E2-S1) fills each row's `openPipeline` with the Stage name, position and Stage count of its open or On Hold Pipeline, and filters by Stage (template and Stage position) on the server. Moved here from E2-S1 #4 on 2026-11-19, because it needs Pipelines.
 
 ### E3-S4 acceptance criteria
 1. The screen shows the Prospect, the Funding Officer, the current Stage as a badge, and every Stage with its Tasks, current Stage first on mobile.
