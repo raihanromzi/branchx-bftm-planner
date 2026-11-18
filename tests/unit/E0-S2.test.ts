@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { type AddressInfo, type Socket, createServer } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -116,6 +117,11 @@ describe("E0-S2 database client, migrations and health check", () => {
       await admin.end();
     });
 
+    // Every migration in drizzle/ (the journal), so later stories' migrations do not break this test.
+    const migrationCount = (
+      JSON.parse(readFileSync(join(root, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: unknown[] }
+    ).entries.length;
+
     async function inspect() {
       const sql = postgres(scratchUrl, { max: 1, prepare: false, onnotice: () => {} });
       try {
@@ -138,13 +144,13 @@ describe("E0-S2 database client, migrations and health check", () => {
       // DATABASE_URL points nowhere, so success proves the unpooled URL was used.
       const out = await runMigrate({ DATABASE_URL: CLOSED_URL, DATABASE_URL_UNPOOLED: scratchUrl });
       expect(out).toContain("Migrations applied.");
-      expect(await inspect()).toEqual({ tables: 1, applied: 1 });
+      expect(await inspect()).toEqual({ tables: 1, applied: migrationCount });
     });
 
     it("is a no-op when run again, falling back to DATABASE_URL", async () => {
       const out = await runMigrate({ DATABASE_URL: scratchUrl });
       expect(out).toContain("Migrations applied.");
-      expect(await inspect()).toEqual({ tables: 1, applied: 1 });
+      expect(await inspect()).toEqual({ tables: 1, applied: migrationCount });
     });
   });
 

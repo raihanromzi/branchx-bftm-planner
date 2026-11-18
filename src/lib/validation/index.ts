@@ -84,3 +84,26 @@ export function optionalFreeText({ max = FREE_TEXT_MAX }: { max?: number } = {})
 
 /** The `version` an update sends back: the version the client loaded (ADR 0003). */
 export const version = z.number().int().min(1);
+
+export const EMAIL_FORMAT_MESSAGE = "Format email tidak valid.";
+/** Longest email (RFC 5321) and password accepted at sign-in. */
+export const SIGN_IN_EMAIL_MAX = 254;
+export const SIGN_IN_PASSWORD_MAX = 200;
+
+/**
+ * The sign-in form (E0-S3). The email is trimmed and lower-cased; the password is taken as typed.
+ * A malformed email is a validation error, which reveals nothing about which emails exist.
+ */
+export const signInInput = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, { error: REQUIRED_MESSAGE })
+    .max(SIGN_IN_EMAIL_MAX, { error: maxLengthMessage(SIGN_IN_EMAIL_MAX) })
+    .pipe(z.email({ error: EMAIL_FORMAT_MESSAGE }))
+    .transform((value) => value.toLowerCase()),
+  password: z
+    .string()
+    .min(1, { error: REQUIRED_MESSAGE })
+    .max(SIGN_IN_PASSWORD_MAX, { error: maxLengthMessage(SIGN_IN_PASSWORD_MAX) }),
+});

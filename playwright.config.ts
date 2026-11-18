@@ -5,6 +5,8 @@ const PORT = 3000;
 // The three viewports from DESIGN.md. Every end-to-end test runs on all of them.
 export default defineConfig({
   testDir: "tests/e2e",
+  // Seeds the e2e Admin (E0-S3) into the dev server's database.
+  globalSetup: "./tests/e2e/support/global-setup.ts",
   outputDir: "test-results",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

@@ -1,6 +1,7 @@
 // The one error shape every Route Handler returns (ADR 0003, docs/product/api.md):
 // { "error": { "code", "message", "fields"?: { [field]: message } } }
 import "server-only";
+import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import { VERSION_CONFLICT_MESSAGE } from "@/server/validation";
 
@@ -63,9 +64,11 @@ export const invalidState = (message: string, code = "invalid_state") => new Api
 
 /**
  * Turns anything a handler threw into a response: ApiError as itself, anything else as a
- * generic 500 whose details stay in the server log.
+ * generic 500 whose details stay in the server log. Next.js's own control-flow errors (such as the
+ * signal that stops build-time prerendering when a handler reads the request) are rethrown, not caught.
  */
 export function toErrorResponse(error: unknown): Response {
+  unstable_rethrow(error);
   if (error instanceof ApiError) return errorResponse(error.status, error.code, error.message, error.fields);
   const reason =
     (error as { code?: string })?.code ?? (error instanceof Error ? error.name : "unknown");

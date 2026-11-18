@@ -51,10 +51,11 @@ The app was scaffolded during project setup on 2026-11-18: Next.js 16, React 19,
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `next typegen && tsc --noEmit` |
 | `npm test` | Vitest, for `tests/unit/`. Needs the test database: `npm run db:up` locally (it uses `TEST_DATABASE_URL`, default `bftm_test` on localhost), the service container in CI. |
-| `npm run test:e2e` | Playwright, for `tests/e2e/`, at the `mobile`, `tablet` and `desktop` viewports. It starts the dev server itself. First time on a machine: `npx playwright install chromium`. |
+| `npm run test:e2e` | Playwright, for `tests/e2e/`, at the `mobile`, `tablet` and `desktop` viewports. It starts the dev server itself. Its global setup seeds a synthetic Admin (`admin.e2e@contoh.id`) into the dev server's `DATABASE_URL` (refusing neon.tech), so run `npm run db:migrate` first. First time on a machine: `npx playwright install chromium`. |
 | `npm run db:generate` | Generate a Drizzle migration from `src/db/schema.ts` into `drizzle/` |
 | `npm run db:up` | Start the local Postgres 16 container (`docker-compose.yml`, ADR 0005) with the databases `bftm_dev` and `bftm_test`, and wait until it is healthy. |
 | `npm run db:migrate` | Apply the migrations in `drizzle/` to `DATABASE_URL_UNPOOLED`, falling back to `DATABASE_URL` (`scripts/migrate.mts`). Running it again is a no-op. |
+| `npm run admin:seed -- <email>` | Create or update the Admin (`scripts/seed-admin.mts`, ADR 0002). The password comes from `ADMIN_PASSWORD` or a hidden prompt, never from the arguments. Rerun it to reset a password; that also ends the Admin's sessions. Uses `DATABASE_URL_UNPOOLED` or `DATABASE_URL`. |
 | `npm run build` | Production build. It needs no runtime secrets. |
 | `npm run vercel-build` | Vercel runs this script on deploy, instead of `build`. It runs `db:migrate` first only when `RUN_MIGRATIONS=true`. Set that in Vercel for Production, and for Preview only when previews have their own Neon branch, so a preview never migrates the production database. |
 
