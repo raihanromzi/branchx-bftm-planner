@@ -2,14 +2,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark mode follows the device setting (DESIGN.md: support light and dark). There is no in-app toggle in v1. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -31,14 +32,30 @@
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+  --color-surface: var(--surface);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-stage-1: var(--stage-1);
+  --color-stage-1-foreground: var(--stage-1-foreground);
+  --color-stage-2: var(--stage-2);
+  --color-stage-2-foreground: var(--stage-2-foreground);
+  --color-stage-3: var(--stage-3);
+  --color-stage-3-foreground: var(--stage-3-foreground);
+  --color-stage-4: var(--stage-4);
+  --color-stage-4-foreground: var(--stage-4-foreground);
+  --color-stage-5: var(--stage-5);
+  --color-stage-5-foreground: var(--stage-5-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,83 +65,128 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+/* The four-size type scale from DESIGN.md: 14/20 (text-sm), 16/24 (text-base), 20/28 (text-xl), 28/34 (text-2xl). */
+@theme {
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/* Colour tokens from DESIGN.md. Components use these through Tailwind; never hard-code hex values. */
+:root {
+  --radius: 6px;
+
+  --background: #ffffff;
+  --foreground: #1c2024;
+  --surface: #f5f6f7;
+  --muted: var(--surface);
+  --muted-foreground: #5b636b;
+  --border: #dde1e4;
+  --input: #dde1e4;
+  --primary: #0e6e73;
+  --primary-hover: #0b5a5e;
+  --primary-foreground: #ffffff;
+  --accent: #e6f2f2;
+  --accent-foreground: #0b4f53;
+  --ring: #0e6e73;
+
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--foreground);
+
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --destructive: var(--danger);
+  --info: #1d4ed8;
+
+  /* Stage buckets 1 to 5 (DESIGN.md, Status display). */
+  --stage-1: #eef0f2;
+  --stage-1-foreground: #3f464e;
+  --stage-2: #e1eef0;
+  --stage-2-foreground: #1f5a5e;
+  --stage-3: #c9e3e4;
+  --stage-3-foreground: #0b4f53;
+  --stage-4: #0e6e73;
+  --stage-4-foreground: #ffffff;
+  --stage-5: #0a4f53;
+  --stage-5-foreground: #ffffff;
+
+  --chart-1: #0e6e73;
+  --chart-2: #3fa9ae;
+  --chart-3: #c9e3e4;
+  --chart-4: #5b636b;
+  --chart-5: #1c2024;
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* Shell sizes (docs/design/E0-S4.md). */
+  --top-bar-height: 56px;
+  --bottom-nav-height: 64px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #15191c;
+    --foreground: #e8ebed;
+    --surface: #1e2327;
+    --muted-foreground: #9aa3ab;
+    --border: #2e353a;
+    --input: #2e353a;
+    --primary: #3fa9ae;
+    --primary-hover: #5bbcc0;
+    --primary-foreground: #0a1f20;
+    --accent: #1b3436;
+    --accent-foreground: #c9e3e4;
+    --ring: #5bbcc0;
+
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --info: #93c5fd;
+
+    --stage-1: #1e2327;
+    --stage-1-foreground: #c3cad0;
+    --stage-2: #1f3a3d;
+    --stage-2-foreground: #b4dcde;
+    --stage-3: #245457;
+    --stage-3-foreground: #e1f1f2;
+    --stage-4: #2d7f83;
+    --stage-4-foreground: #ffffff;
+    --stage-5: #3fa9ae;
+    --stage-5-foreground: #0a1f20;
+
+    --chart-1: #3fa9ae;
+    --chart-2: #5bbcc0;
+    --chart-3: #245457;
+    --chart-4: #9aa3ab;
+    --chart-5: #e8ebed;
+  }
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light dark;
   }
   body {
     @apply bg-background text-foreground;
   }
-  html {
-    @apply font-sans;
+  /* The focus ring: 2 px --ring with a 2 px offset, on every focusable element. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
