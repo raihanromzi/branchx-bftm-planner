@@ -436,4 +436,5 @@ Resolved:
 
 | ID | Story | Criterion | Owner | Status | Report |
 |----|-------|-----------|-------|--------|--------|
+| BUG-2 | E2-S3 | 1 | frontend | Verified | [QA 2026-11-19-E2-S3](qa/2026-11-19-E2-S3.md#bug-2-focus-lost-after-a-server-field-error) |
 | BUG-1 | E0-S5 | 1 | frontend | Verified | [QA 2026-11-19-E0-S5](qa/2026-11-19-E0-S5.md#bug-1-open-redirect-through-dot-segments) |

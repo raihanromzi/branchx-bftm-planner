@@ -216,6 +216,15 @@ function ProspectForm({
   const fieldRefs = useRef<Partial<Record<FieldKey, HTMLElement | null>>>({});
   const alertRef = useRef<HTMLDivElement>(null);
   const duplicateRef = useRef<HTMLDivElement>(null);
+  // The field to focus once React has committed the render that re-enables it (BUG-2).
+  const [focusRequest, setFocusRequest] = useState<{ field: FieldKey; id: number } | null>(null);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    const element = fieldRefs.current[focusRequest.field];
+    element?.scrollIntoView({ block: "center" });
+    element?.focus({ preventScroll: true });
+  }, [focusRequest]);
 
   // The Funding Officer select lists the active ones, plus the Prospect's own when it is no longer active.
   const currentOfficer = record?.fundingOfficer;
@@ -237,12 +246,9 @@ function ProspectForm({
   }
 
   function focusField(field: FieldKey) {
-    // After the next render: a field read-only or disabled while saving can take focus again by then.
-    requestAnimationFrame(() => {
-      const element = fieldRefs.current[field];
-      element?.scrollIntoView({ block: "center" });
-      element?.focus({ preventScroll: true });
-    });
+    // Focus in an effect, after the commit that ends `pending`: a select disabled while saving cannot take
+    // focus until then, and an animation frame can run before React has committed (BUG-2).
+    setFocusRequest((previous) => ({ field, id: (previous?.id ?? 0) + 1 }));
   }
 
   // Location: from the map (tap or drag), GPS, or the two coordinate inputs.
