@@ -4,6 +4,8 @@ export const PROSPECTS_PATH = "/api/prospects";
 export const SCREEN_PATH = "/prospect";
 export const NEW_PROSPECT_PATH = "/prospect/baru";
 export const prospectPath = (id: string) => `/prospect/${id}`;
+export const editProspectPath = (id: string) => `/prospect/${id}/ubah`;
+export const FUNDING_OFFICER_SETTINGS_PATH = "/pengaturan/funding-officer";
 
 /**
  * The open (or On Hold) Pipeline's Stage on a list row. Always null until E3-S3 fills it (E3-S3 #9:
@@ -84,4 +86,62 @@ export const PROSPECT_COPY = {
   locationYes: "Ada",
   locationNo: "Belum ada",
   locationNoSuffix: " lokasi",
+} as const;
+
+/** Copy from docs/design/E2-S3.md (the Prospect form). */
+export const PROSPECT_FORM_COPY = {
+  newTitle: "Tambah Prospect",
+  editTitle: "Ubah Prospect",
+  requiredNote: "* wajib diisi",
+  name: "Nama Prospect",
+  fundingOfficer: "Funding Officer",
+  chooseFundingOfficer: "Pilih Funding Officer",
+  inactiveSuffix: " (nonaktif)",
+  category: "Kategori",
+  chooseCategory: "Pilih kategori",
+  location: "Lokasi",
+  useMyLocation: "Gunakan lokasi saya",
+  locating: "Mencari lokasi…",
+  clearLocation: "Hapus lokasi",
+  noLocation: "Belum ada lokasi.",
+  mapLabel: "Peta lokasi Prospect. Ketuk peta untuk menandai lokasi.",
+  gpsDenied: "Izin lokasi ditolak. Ketuk peta untuk menandai lokasi.",
+  gpsFailed: "Lokasi belum didapat. Ketuk peta untuk menandai lokasi.",
+  enterCoordinates: "Masukkan koordinat",
+  latitude: "Lintang",
+  longitude: "Bujur",
+  address: "Alamat",
+  contact: "Kontak",
+  contactName: "Nama",
+  contactRole: "Jabatan",
+  contactPhone: "Telepon",
+  potentialAccounts: "Potensi rekening",
+  note: "Catatan",
+  noteHint: "Jangan tulis nama, NIK, atau nomor rekening nasabah.",
+  save: "Simpan",
+  saving: "Menyimpan…",
+  cancel: "Batal",
+  saved: "Prospect disimpan.",
+  saveFailed: "Gagal menyimpan. Periksa koneksi lalu coba lagi.",
+  retry: "Coba lagi",
+  reload: "Muat ulang",
+  noActiveOfficers:
+    "Tambahkan Funding Officer dulu. Setiap Prospect perlu ditugaskan ke satu Funding Officer.",
+  openOfficerSettings: "Buka Pengaturan Funding Officer",
+  loadError: "Formulir Prospect gagal dimuat. Periksa koneksi, lalu coba lagi.",
+  loading: "Memuat formulir Prospect…",
+  notFound: "Prospect ini tidak ditemukan. Mungkin alamatnya salah.",
+  backToList: "Kembali ke daftar Prospect",
+  archived: "Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya.",
+  openProspect: "Buka Prospect",
+  duplicateTitle: (name: string) => `Sudah ada Prospect bernama ${name}`,
+  duplicateCreated: "Prospect baru sudah tersimpan. Periksa Prospect yang sudah ada, lalu pilih:",
+  duplicateUpdated: "Perubahan sudah tersimpan. Periksa Prospect yang sudah ada, lalu pilih:",
+  duplicateOpen: (name: string) => `Buka ${name}`,
+  keepBoth: "Tetap simpan",
+  discardNew: "Batalkan Prospect baru",
+  discardNewHint: "Prospect baru akan diarsipkan.",
+  discarded: "Prospect baru dibatalkan dan diarsipkan.",
+  discardFailed: "Gagal membatalkan. Periksa koneksi lalu coba lagi.",
+  renameAgain: "Ubah nama",
 } as const;

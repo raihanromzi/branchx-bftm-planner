@@ -15,6 +15,9 @@ type ProspectInput = {
   category?: string | null;
   location?: { lat: number; lng: number } | null;
   potentialAccounts?: number | null;
+  address?: string | null;
+  contact?: { name?: string | null; role?: string | null; phone?: string | null } | null;
+  note?: string | null;
 };
 
 export async function createProspect(page: Page, input: ProspectInput) {

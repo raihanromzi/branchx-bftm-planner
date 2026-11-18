@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { ContentSkeleton } from "@/components/shell/page-header";
 import { Sidebar } from "@/components/shell/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { getAdmin, requireAdminPage } from "@/server/auth/page";
 
 // The signed-in app shell (E0-S4). The navigation renders at once; anything that reads the session streams
@@ -34,6 +35,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         </Suspense>
       </main>
       <BottomNav className="lg:hidden" />
+      <Toaster position="top-center" />
     </div>
   );
 }
