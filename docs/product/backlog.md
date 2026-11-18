@@ -11,7 +11,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E0-S1 | As an Admin, I want the app scaffolded on the agreed stack, so that every later story builds on a working, tested base. | 2 | backend | none | Todo |
+| E0-S1 | As an Admin, I want the app scaffolded on the agreed stack, so that every later story builds on a working, tested base. | 2 | backend | none | Verified |
 | E0-S2 | As an Admin, I want the app connected to Postgres with migrations and a health check, so that data is stored safely and its state can be checked. | 3 | backend | E0-S1 | Todo |
 | E0-S3 | As an Admin, I want to sign in with my email and password, so that only I can see and change the team's data. | 5 | backend | E0-S2, ADR 0002 | Todo |
 | E0-S4 | As an Admin, I want an app shell with navigation that fits my phone and my laptop, and that I can install, so that I can reach every screen quickly. | 5 | frontend | E0-S1 | Todo |
