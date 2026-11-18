@@ -1,7 +1,7 @@
 ---
 feature: planner-v1
 title: BFTM Planner v1
-phase: backlog
+phase: architecture
 branch: feature/planner-v1
 started: 2026-11-18
 updated: 2026-11-18
@@ -18,7 +18,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - PRD: docs/product/prd.md (approved)
 - Glossary: GLOSSARY.md (approved)
 - Brief: docs/product/briefs/planner-v1.md (approved)
-- Epic and stories:
+- Epic and stories: docs/product/backlog.md, E0 to E6 (approved)
 - ADRs:
 - Designs:
 - QA reports:
@@ -33,6 +33,8 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-18 bootstrap gate: the user approved the PRD and glossary, including the proposed defaults for open questions 1 to 5 (200 m On-site Radius, 5 MB photos, WIB only, the default Stages, a fixed Category list).
 - 2026-11-18 brief: user decisions: a Pipeline has its own Funding Officer, who gets the Actual credit; Stage moves are free, with a warning for unticked Tasks; volume is up to 15 Funding Officers and 2,000 Prospects (paged lists, clustered map). Brief written with 45 edge cases and waiting for approval.
 - 2026-11-18 brief gate: the user approved the brief, including all proposed edge-case behaviours.
+- 2026-11-18 backlog: 7 epics (E0 to E6), 27 stories, 119 points. All 45 edge cases traced. E0-S1 is mostly in place from project setup. Waiting for approval.
+- 2026-11-18 backlog gate: the user approved the stories as written.
 
 ## Blocked on
 
