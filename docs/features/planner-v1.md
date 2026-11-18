@@ -1,7 +1,7 @@
 ---
 feature: planner-v1
 title: BFTM Planner v1
-phase: design
+phase: build
 branch: feature/planner-v1
 started: 2026-11-18
 updated: 2026-11-18
@@ -20,7 +20,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - Brief: docs/product/briefs/planner-v1.md (approved)
 - Epic and stories: docs/product/backlog.md, E0 to E6 (approved)
 - ADRs: docs/adr/0001 to 0005; docs/architecture.md
-- Designs:
+- Designs: docs/design/ (14 screens); DESIGN.md confirmed
 - QA reports:
 - Pull request:
 - Preview URL:
@@ -36,6 +36,8 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-18 backlog: 7 epics (E0 to E6), 27 stories, 119 points. All 45 edge cases traced. E0-S1 is mostly in place from project setup. Waiting for approval.
 - 2026-11-18 backlog gate: the user approved the stories as written.
 - 2026-11-18 architecture: ADR 0001 (no customer data) was written from the hard rule. The user picked the recommended option for each decision: ADR 0002, sign-in with scrypt and database sessions, no auth library; ADR 0003, JSON Route Handlers over a service layer; ADR 0004, private Vercel Blob uploaded through the server; ADR 0005, Postgres in Docker for local development and tests. docs/architecture.md written.
+- 2026-11-18 design: the user chose the deep teal accent (#0E6E73), Plus Jakarta Sans, a 6 px radius and the 14/16/20/28 type scale. DESIGN.md is confirmed, with colour tokens, a Stage colour ramp with dot marks, map markers numbered by Stage position, and UI labels. 14 screen designs written. Two open questions added to the backlog (a Stage filter on the Prospect list, and grouping Pipelines by Stage across templates). The backlog copy for E3-S4 #3 now uses "Tugas". Waiting for design approval.
+- 2026-11-18 design gate: the user approved DESIGN.md, the 14 screen designs and both proposals, now in E2-S1 #4 and E5-S1 #6.
 
 ## Blocked on
 

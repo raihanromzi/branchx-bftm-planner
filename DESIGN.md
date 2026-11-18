@@ -2,7 +2,7 @@
 
 The visual and interaction rules every screen follows. The ui-designer skill owns this file and adds to it when a screen needs something new. The frontend skill builds only from what is here and in `docs/design/<story-id>.md`.
 
-Status: **draft**. The first ui-designer run confirms the open choices (marked _choose_) with the user and fills in the tokens.
+Status: **confirmed** 2026-11-18. The user chose the accent, font, radius and type scale at the first ui-designer run.
 
 ## Principles
 
@@ -43,14 +43,48 @@ The app should look like a tool made for this team, not like a generated templat
 
 - **Components:** shadcn/ui on Tailwind CSS. Reuse a shadcn component before writing a new one.
 - **Colour:** shadcn CSS variables, defined once in `app/globals.css`. Never hard-code hex values in components. Support light and dark mode.
-  - Accent: _choose_ one, deliberately, at the first ui-designer run.
-  - Status colours: success, warning, danger and info, used only for status.
-- **Type:** _choose_ one family, loaded with `next/font`, with tabular figures (for example IBM Plex Sans or Source Sans 3). Body text is at least 16 px on mobile. The type scale is _choose_, with four sizes at most.
-- **Radius:** _choose_ one base radius. Inputs, buttons and cards share it.
+- **Type:** Plus Jakarta Sans, loaded with `next/font/google` (weights 400, 500, 600), with `font-variant-numeric: tabular-nums` on every number in a table, a Target / Actual figure or a date column. Body text is at least 16 px on mobile.
+- **Radius:** `--radius: 6px`. Inputs, buttons, cards, sheets and Stage badges share it. Only Outcome badges are pills (`rounded-full`), so the shape itself tells an Outcome from a Stage.
 - **Elevation:** flat by default. Shadows only for overlays: menus, dialogs and sheets.
 - **Spacing:** the Tailwind 4 px scale. The page gutter is 16 px on mobile and 24 px on desktop.
 - **Icons:** lucide-react. An icon on its own needs an `aria-label`.
 - **Numbers and dates:** Indonesian formats. "1.250 rekening", "18 Nov 2026", "14.30 WIB".
+
+### Colour tokens
+
+Why teal: it stays legible in outdoor light, is not the default bank blue or an AI-default purple, and stays clearly apart from the success green and the info blue.
+
+| Token | Light | Dark | Use |
+|-------|-------|------|-----|
+| `--background` | `#FFFFFF` | `#15191C` | page |
+| `--surface` (`--muted`) | `#F5F6F7` | `#1E2327` | grouped areas, table header, skeletons |
+| `--foreground` | `#1C2024` | `#E8EBED` | text |
+| `--muted-foreground` | `#5B636B` | `#9AA3AB` | secondary text (4.6:1 on white) |
+| `--border` / `--input` | `#DDE1E4` | `#2E353A` | borders, inputs |
+| `--primary` (accent) | `#0E6E73` | `#3FA9AE` | primary buttons, active nav, links |
+| `--primary-hover` | `#0B5A5E` | `#5BBCC0` | hover and pressed |
+| `--primary-foreground` | `#FFFFFF` | `#0A1F20` | text on accent |
+| `--accent` (tint) | `#E6F2F2` | `#1B3436` | selected row, active nav background |
+| `--ring` | `#0E6E73` | `#5BBCC0` | focus ring, 2 px plus a 2 px offset |
+| `--success` | `#15803D` | `#4ADE80` | Won, On-site, Target reached |
+| `--warning` | `#B45309` | `#FBBF24` | On Hold, Off-site, Overdue |
+| `--danger` / `--destructive` | `#B91C1C` | `#F87171` | Lost, errors, destructive actions |
+| `--info` | `#1D4ED8` | `#93C5FD` | neutral notices |
+
+Status colours are used only for status, and always with an icon or a text label.
+
+### Type scale
+
+Four sizes, with line heights:
+
+| Size | Use | Weight |
+|------|-----|--------|
+| 28 / 34 | page title on desktop, key figures (Realisasi) | 600 |
+| 20 / 28 | page title on mobile, section titles, dialog titles | 600 |
+| 16 / 24 | body, inputs, buttons, list rows on mobile | 400, labels 500 |
+| 14 / 20 | table cells and meta on desktop, badges, helper and error text | 400 or 500 |
+
+Hierarchy comes from size and weight. Labels are sentence case, never all caps.
 
 ## Responsive rules
 
@@ -83,9 +117,27 @@ Every screen, at every viewport:
 
 ## Status display
 
-- **Stage:** a badge with the Stage name. Its colour comes from the Stage's position in the Pipeline Template, early to late.
-- **Outcome:** Won, Lost and On Hold each have a badge with an icon and a label.
-- **Workflow Progress:** a progress bar with a text value ("3/8 Tugas").
+- **Stage:** a badge (6 px radius) with the Stage name, preceded by a position mark of filled and empty dots ("●●●○○" for Stage 3 of 5, with `aria-hidden`; the badge's accessible name is "Presentasi, tahap 3 dari 5"). Its colour comes from the Stage's position, bucketed into five steps: `bucket = ceil(position / stageCount × 5)`.
+
+  | Bucket | Background | Text |
+  |--------|-----------|------|
+  | 1 | `#EEF0F2` | `#3F464E` |
+  | 2 | `#E1EEF0` | `#1F5A5E` |
+  | 3 | `#C9E3E4` | `#0B4F53` |
+  | 4 | `#0E6E73` | `#FFFFFF` |
+  | 5 | `#0A4F53` | `#FFFFFF` |
+
+  Dark mode uses the same steps on `#1E2327` to `#3FA9AE`. Defined as `--stage-1` to `--stage-5` tokens. The name is never truncated below 12 characters.
+- **Outcome:** pill badges with an icon and a label. Won "Berhasil" (`CircleCheck`, success), Lost "Gagal" (`CircleX`, danger), On Hold "Ditunda" (`CirclePause`, warning). Tinted background, coloured text.
+- **Overdue:** a "Terlambat" label with `Clock` in warning colour, next to the due date. Never colour alone.
+- **Check-in site:** "Di lokasi (85 m)" (`MapPinCheck`, success) or "Di luar lokasi (1,2 km)" / "Di luar lokasi (GPS tidak tersedia)" (`MapPinX`, warning).
+- **Inactive Funding Officer:** "Funding Officer nonaktif" in muted text with `UserX`.
+- **Target vs Actual:** the Actual figure (28 px) over "dari 1.800 target (69%)", with a 6 px progress bar. The bar is accent below 100% and success at 100% or more, with "Tercapai" written out. The previous month is written as text: "Bulan lalu 1.020".
+- **Workflow progress:** a progress bar with a text value ("3/8 Tugas").
+
+## Map markers
+
+A 32 px circle in the Stage bucket colour, with the Stage position number inside it in 14 px semibold. The number is a real sequence, so it is meaningful. Prospects without an open Pipeline use a hollow grey circle with "–". A Won latest Pipeline shows a `Check` and a Lost one an `X`, in the success and danger colours. Clusters are a dark neutral circle (`#1C2024`) with the white count. The legend lists the Stages with their numbers.
 
 ## States
 
@@ -107,7 +159,27 @@ Every data view defines all four states:
 
 | Term | UI label |
 |------|----------|
-| (filled in by ui-designer as screens are designed) | |
+| Prospect | Prospect |
+| Pipeline | Pipeline |
+| Pipeline Template | Template Pipeline |
+| Stage | Tahap (the Stage's own name is shown, such as "Presentasi") |
+| Task | Tugas |
+| Activity | Kegiatan |
+| Check-in | Check-in |
+| On-site / Off-site | Di lokasi / Di luar lokasi |
+| Outcome: Won / Lost / On Hold | Berhasil / Gagal / Ditunda |
+| Overdue | Terlambat |
+| Target / Actual | Target / Realisasi |
+| Accounts Opened | Rekening dibuka |
+| Potential Accounts | Potensi rekening |
+| Contact Person | Kontak |
+| Category | Kategori |
+| Funding Officer | Funding Officer |
+| Admin | Admin |
+| Archived | Diarsipkan |
+| Schedule (screen) | Jadwal |
+| Map (screen) | Peta |
+| Settings (screen) | Pengaturan |
 
 ## Accessibility
 

@@ -120,7 +120,7 @@ Release:
 1. A Prospect has: name (required, 1 to 150 characters), Category (Sekolah, Pasar, Perusahaan, Instansi, Komunitas or Lainnya), address, location (optional latitude and longitude), Contact Person (name, role, phone), Potential Accounts, Funding Officer (required, active) and a note. There is no field for an account holder. (EC7, EC9)
 2. Potential Accounts accepts only integers from 0 to 100,000. (EC10)
 3. A location outside Indonesia's bounding box (latitude −11 to 6, longitude 95 to 141) is rejected with "Lokasi di luar Indonesia." (EC13)
-4. The list is paged at 50 rows, sorted by name, and supports search by name and filters by Category, Funding Officer, archived status and "no location", all on the server. It stays under 500 ms with 2,000 Prospects. (EC6)
+4. The list is paged at 50 rows, sorted by name, and supports search by name and filters by Category, Funding Officer, archived status, "no location" and the Stage of the open Pipeline (template and Stage position), all on the server. It stays under 500 ms with 2,000 Prospects. (EC6)
 5. Creating or renaming a Prospect whose name matches an existing one (ignoring case and repeated spaces) still saves, and the response lists the matching Prospects. (EC14)
 6. Changing a Prospect's Funding Officer changes only the Prospect. (EC26)
 7. Archived Prospects are excluded from the default list, can still be fetched by ID with `archived: true`, and can be restored. There is no endpoint that deletes a Prospect. (EC22, EC40)
@@ -217,7 +217,7 @@ Release:
 ### E3-S4 acceptance criteria
 1. The screen shows the Prospect, the Funding Officer, the current Stage as a badge, and every Stage with its Tasks, current Stage first on mobile.
 2. Ticking a Task takes one tap and shows the result without a page reload. Overdue Tasks are marked "Terlambat" with a label. (EC30)
-3. Moving forward with unticked Tasks shows "3 Task belum selesai. Tetap pindah ke Presentasi?" and the move happens only after confirming. (EC23)
+3. Moving forward with unticked Tasks shows "3 Tugas belum selesai. Tetap pindah ke Presentasi?" (Task is labelled "Tugas" in the UI, DESIGN.md) and the move happens only after confirming. (EC23)
 4. Setting Won asks for Accounts Opened and the Won date. A date in the future or a count below 1 shows an inline error. Setting Lost asks for a reason, with the customer-data hint. (EC10, EC24, EC32, EC42)
 5. Reopening a Won Pipeline asks for confirmation that says Realisasi for its month will go down by its Accounts Opened. (EC25)
 6. Actions that the current state does not allow are not shown. (EC24)
@@ -341,7 +341,7 @@ Release:
 3. The team Target is the sum of the Funding Officers' Targets for the month. A Funding Officer or month with no Target reports `target: null`, not 0. (EC4)
 4. The summary for a month returns, per Funding Officer and for the team: Target, Actual, and the same Actual for the previous month.
 5. The summary returns Overdue Tasks (due date in WIB passed, unticked, on an open Pipeline) and Overdue Activities (time passed, still Scheduled). (EC30)
-6. The summary returns today's and the next 7 days' Activities, and open Pipelines counted by Stage.
+6. The summary returns today's and the next 7 days' Activities, and open Pipelines counted by Stage, grouped by template, then by Stage position and name.
 7. Reopening a Won Pipeline lowers that month's Actual. (EC25)
 
 ### E5-S2 acceptance criteria
@@ -422,7 +422,10 @@ Release:
 
 ## Open questions
 
-(none)
+Resolved:
+
+1. Stage filter on the Prospect list: added to E2-S1 criterion 4. The user approved it with the designs on 2026-11-18.
+2. Grouping open Pipelines by Stage across templates: grouped by template, then by Stage position and name, in E5-S1 criterion 6. The user approved it with the designs on 2026-11-18.
 
 ## Bugs
 
