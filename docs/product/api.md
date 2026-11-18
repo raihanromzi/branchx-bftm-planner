@@ -328,7 +328,7 @@ The Stage filter is added by E3-S3. Each row:
 }
 ```
 
-`openPipeline` is always `null` until E3-S3 fills it with the open Pipeline's Stage.
+`openPipeline` is always `null` until E3-S3 fills it with the open Pipeline's Stage. **Shape (filled by E3-S3, E3-S3 #9):** `{ "stageName": string, "stagePosition": number, "stageCount": number } | null`, the Stage name, its 1-based position and the Pipeline's Stage count, of the Prospect's open or On Hold Pipeline; `null` when it has none. For example `"openPipeline": { "stageName": "Presentasi", "stagePosition": 3, "stageCount": 5 }`. The Prospect list (E2-S2) already renders this shape as the Stage badge (`src/components/prospects/shared.ts`, `OpenPipelineStage`).
 
 | Status | Body | When |
 |--------|------|------|

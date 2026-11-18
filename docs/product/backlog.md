@@ -112,7 +112,7 @@ Release:
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
 | E2-S1 | As an Admin, I want to create, edit, search, archive and restore Prospects, so that I have one reliable list. | 8 | backend | E1-S1, E0-S6 | Verified |
-| E2-S2 | As an Admin, I want a paged Prospect list with search and filters, so that I can find any Prospect fast on my phone. | 5 | frontend | E2-S1, E0-S5 | Todo |
+| E2-S2 | As an Admin, I want a paged Prospect list with search and filters, so that I can find any Prospect fast on my phone. | 5 | frontend | E2-S1, E0-S5 | Verified |
 | E2-S3 | As an Admin, I want a Prospect form with a location picker, so that I can add a Prospect in the field in under a minute. | 5 | frontend | E2-S1, E0-S5 | Todo |
 | E2-S4 | As an Admin, I want a Prospect detail page, so that I see its data, its Pipelines and its Activities in one place. | 3 | frontend | E2-S3, E3-S3, E4-S1 | Todo |
 
@@ -430,7 +430,7 @@ Resolved:
 
 ## Follow-ups
 
-(none)
+- **Shell and dynamic routes (from E2-S2).** `src/components/shell/bottom-nav.tsx` calls `usePathname()` outside a Suspense boundary, which blocks prerendering for routes with a dynamic segment. The placeholder `src/app/(app)/prospect/[id]/page.tsx` works around it with `export const instant = false`. E2-S4 builds the real detail page and fixes this in the shell, so no page needs the workaround.
 
 ## Bugs
 
