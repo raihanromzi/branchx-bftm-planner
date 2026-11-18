@@ -31,7 +31,10 @@ If two sources conflict and the PRD does not settle it, stop and ask. Do not gue
 
 - Next.js (App Router) with TypeScript, Node 22, npm
 - shadcn/ui on Tailwind CSS
-- Postgres on Neon, via the Vercel Marketplace, with Drizzle ORM. Use a driver that also works against plain Postgres (postgres.js or node-postgres), because CI tests against a Postgres container.
+- Postgres on Neon (`bftm-planner-db`, Singapore), via the Vercel Marketplace, with Drizzle ORM and the postgres.js driver, which also works against the plain Postgres container in CI.
+  - `DATABASE_URL` goes through Neon's connection pooler. The app uses it, and with postgres.js it must pass `{ prepare: false }`.
+  - `DATABASE_URL_UNPOOLED` is the direct connection. Migrations and drizzle-kit use it.
+  - Get local values with `vercel env pull .env.local`. The current state of each environment is in `docs/ops/deploy.md`.
 - Vercel Blob for Check-in photos
 - Leaflet with OpenStreetMap (react-leaflet)
 - Hosting on Vercel (Hobby plan), deployed through its Git integration

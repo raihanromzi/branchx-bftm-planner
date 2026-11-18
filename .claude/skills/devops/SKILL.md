@@ -49,6 +49,8 @@ Use these if they are installed.
 
 ## Rules
 
+- Never run `vercel deploy` without `--target preview` (or `--prod` after the release gate). Vercel sends a project's first deployment to production by default.
+
 - Never release to production without the user's explicit confirmation in this conversation.
 - Never push to `main` except for the merge of a confirmed release and its docs-only release record.
 - Never print, log or commit secret values.

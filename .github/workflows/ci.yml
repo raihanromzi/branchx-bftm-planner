@@ -41,7 +41,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bftm_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Until story E0-S1 scaffolds the app there is nothing to check.
       - name: Detect app
@@ -54,7 +54,7 @@ jobs:
             echo "::notice::No package.json yet (E0-S1 not built). Skipping checks."
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.app.outputs.present == 'true'
         with:
           node-version: 22
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure() && steps.app.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           path: |
