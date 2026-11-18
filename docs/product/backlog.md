@@ -435,3 +435,4 @@ Resolved:
 
 | ID | Story | Criterion | Owner | Status | Report |
 |----|-------|-----------|-------|--------|--------|
+| BUG-1 | E0-S5 | 1 | frontend | Verified | [QA 2026-11-19-E0-S5](qa/2026-11-19-E0-S5.md#bug-1-open-redirect-through-dot-segments) |

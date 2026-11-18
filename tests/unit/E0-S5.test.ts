@@ -22,6 +22,11 @@ describe("E0-S5 safeNext", () => {
     expect(safeNext("//evil.com")).toBe("/");
     expect(safeNext("//evil.com/prospect")).toBe("/");
     expect(safeNext("/\\evil.com")).toBe("/");
+    // BUG-1: dot segments collapse into a protocol-relative path after URL parsing.
+    expect(safeNext("/.//evil.com")).toBe("/");
+    expect(safeNext("/a/..//evil.com")).toBe("/");
+    expect(safeNext("/%2e//evil.com")).toBe("/");
+    expect(safeNext("/prospect/./detail")).toBe("/prospect/detail");
     expect(safeNext("\\\\evil.com")).toBe("/");
     expect(safeNext("/prospect\\..\\\\evil.com")).toBe("/");
   });

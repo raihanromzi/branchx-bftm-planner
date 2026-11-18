@@ -29,6 +29,10 @@ export function safeNext(value: string | null | undefined): string {
   }
   if (url.origin !== BASE) return DEFAULT_NEXT;
 
+  // Dot segments collapse during parsing ("/.//evil.com" becomes "//evil.com"), so the result is checked
+  // again: a returned path starting with "//" would leave the site.
+  if (url.pathname.startsWith("//")) return DEFAULT_NEXT;
+
   const path = url.pathname.replace(/\/+$/, "").toLowerCase();
   if (path === SIGN_IN_PATH) return DEFAULT_NEXT;
 
