@@ -20,6 +20,7 @@ import * as listRoute from "@/app/api/funding-officers/route";
 import * as itemRoute from "@/app/api/funding-officers/[id]/route";
 import * as deactivateRoute from "@/app/api/funding-officers/[id]/deactivate/route";
 import * as reactivateRoute from "@/app/api/funding-officers/[id]/reactivate/route";
+import * as deactivationPreviewRoute from "@/app/api/funding-officers/[id]/deactivation-preview/route";
 import { migrateTestDatabase, testDatabaseUrl, truncateAllTables } from "./support/test-db";
 
 const TEST_URL = testDatabaseUrl();
@@ -428,14 +429,16 @@ describe("E1-S1 Funding Officers", () => {
           entry.isDirectory() ? walk(join(path, entry.name)) : entry.name.startsWith("route.") ? [join(path, entry.name)] : [],
         );
       })(dir);
-      expect(files.length).toBe(4);
-      for (const route of [listRoute, itemRoute, deactivateRoute, reactivateRoute]) {
+      // 5 since E1-S3 added the read-only deactivation-preview route.
+      expect(files.length).toBe(5);
+      for (const route of [listRoute, itemRoute, deactivateRoute, reactivateRoute, deactivationPreviewRoute]) {
         expect("DELETE" in route).toBe(false);
       }
       expect(Object.keys(listRoute).sort()).toEqual(["GET", "POST"]);
       expect(Object.keys(itemRoute).sort()).toEqual(["GET", "PATCH"]);
       expect(Object.keys(deactivateRoute)).toEqual(["POST"]);
       expect(Object.keys(reactivateRoute)).toEqual(["POST"]);
+      expect(Object.keys(deactivationPreviewRoute)).toEqual(["GET"]);
     });
   });
 

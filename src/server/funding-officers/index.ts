@@ -1,8 +1,8 @@
 // Funding Officers (E1-S1): the team members work is assigned to. Never deleted (EC22), only
 // deactivated and reactivated. Route Handlers live in src/app/api/funding-officers/ (ADR 0003).
 import "server-only";
-import { asc, desc, eq, sql } from "drizzle-orm";
-import { fundingOfficer } from "@/db/schema";
+import { and, asc, count, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { activity, fundingOfficer, pipeline, prospect } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
 import { ApiError, notFound, updateWithVersion } from "@/server/http";
 import type { z } from "zod";
@@ -113,6 +113,28 @@ export async function setFundingOfficerActive(
   const current = await getFundingOfficer(id, { db });
   if (current.active === active) return current;
   return toRecord(await updateWithVersion(fundingOfficer, id, input.version, { active }, { db }));
+}
+
+/** What a Funding Officer still owns, for the deactivation confirmation (E1-S3, EC20). */
+export type DeactivationPreview = { prospects: number; openPipelines: number; futureScheduledActivities: number };
+
+/**
+ * Counts the Funding Officer's Prospects (not archived), open Pipelines (no Outcome, so On Hold is
+ * left out, as in GLOSSARY.md) and Scheduled Activities that start after now. Each record is counted
+ * by its own Funding Officer (EC26). Reads the tables directly: prospects, pipelines and activities
+ * import this module, so importing theirs would make a cycle (docs/architecture.md). 404 for an unknown id.
+ */
+export async function getDeactivationPreview(id: string, { db = getDb() }: Options = {}): Promise<DeactivationPreview> {
+  await getFundingOfficer(id, { db });
+  const [[prospects], [openPipelines], [futureScheduledActivities]] = await Promise.all([
+    db.select({ n: count() }).from(prospect).where(and(eq(prospect.fundingOfficerId, id), isNull(prospect.archivedAt))),
+    db.select({ n: count() }).from(pipeline).where(and(eq(pipeline.fundingOfficerId, id), isNull(pipeline.outcome))),
+    db
+      .select({ n: count() })
+      .from(activity)
+      .where(and(eq(activity.fundingOfficerId, id), eq(activity.status, "scheduled"), gt(activity.startsAt, sql`now()`))),
+  ]);
+  return { prospects: prospects.n, openPipelines: openPipelines.n, futureScheduledActivities: futureScheduledActivities.n };
 }
 
 /**

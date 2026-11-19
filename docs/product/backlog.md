@@ -71,7 +71,7 @@ Release:
 |----|-------|--------|-------|------------|--------|
 | E1-S1 | As an Admin, I want to add, edit and deactivate Funding Officers, so that work can be assigned to the right person. | 3 | backend | E0-S3, E0-S6 | Verified |
 | E1-S2 | As an Admin, I want a Funding Officer screen in Pengaturan, so that I can manage my team from my phone. | 3 | frontend | E1-S1, E0-S5 | Verified |
-| E1-S3 | As an Admin, I want to know what open work a Funding Officer still has when I deactivate them, so that nothing is left without an owner. | 2 | backend | E1-S1, E3-S3, E4-S1 | Todo |
+| E1-S3 | As an Admin, I want to know what open work a Funding Officer still has when I deactivate them, so that nothing is left without an owner. | 2 | backend | E1-S1, E3-S3, E4-S1 | Verified |
 | E1-S4 | As an Admin, I want a confirmation that shows a Funding Officer's open work, and to see records whose Funding Officer is inactive, so that I can reassign them. | 2 | frontend | E1-S3, E1-S2 | Todo |
 
 ### E1-S1 acceptance criteria
@@ -432,6 +432,8 @@ Resolved:
 ## Follow-ups
 
 - **Shell and dynamic routes (from E2-S2).** `src/components/shell/bottom-nav.tsx` calls `usePathname()` outside a Suspense boundary, which blocks prerendering for routes with a dynamic segment. The placeholder `src/app/(app)/prospect/[id]/page.tsx` works around it with `export const instant = false`, and so do `src/app/(app)/prospect/[id]/ubah/page.tsx` (E2-S3) and `src/app/(app)/pengaturan/template-pipeline/[id]/page.tsx` (E3-S2). E2-S4 builds the real detail page and fixes this in the shell, so no page needs the workaround.
+- **Inactive Funding Officer filter (from E1-S3).** E1-S4 #3 needs a query parameter on `GET /api/prospects` that keeps only Prospects whose Funding Officer is inactive. It does not exist yet. E1-S4 adds it (a small backend change inside that story).
+- **"Open" across the API (from E1-S3).** The deactivation preview and the dashboard count open Pipelines with no Outcome, as GLOSSARY.md defines "open". The Prospect list's `openPipeline` field also includes On Hold. If the BFTM wants On Hold Pipelines in the "2 Pipeline" count of the deactivation confirmation, that is a one-condition change.
 
 ## Bugs
 

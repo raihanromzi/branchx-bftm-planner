@@ -244,6 +244,28 @@ Deactivate sets `active` to `false`: no new work can be assigned to the Funding 
 | `404` | `not_found` | Unknown id. |
 | `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
 
+### `GET /api/funding-officers/:id/deactivation-preview`
+
+Implemented in E1-S3. The Funding Officer's open work, for the deactivation confirmation (E1-S4, EC20): "4 Prospect, 2 Pipeline, 3 Kegiatan mendatang masih atas nama Rina." Changes nothing. Answers for an inactive Funding Officer too.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | `{ "prospects": 4, "openPipelines": 2, "futureScheduledActivities": 3 }` | Found. |
+| `401` | `unauthorized` | No Admin session. |
+| `404` | `not_found` | Unknown id, or not a UUID. |
+
+| Field | Counts the records whose own Funding Officer is this one, and that are |
+|-------|------|
+| `prospects` | Prospects not archived. |
+| `openPipelines` | Pipelines with no Outcome. On Hold, Won and Lost are not open (GLOSSARY.md "Outcome"). |
+| `futureScheduledActivities` | Activities `scheduled` with `startsAt` after now. Past (Overdue), Done and Cancelled ones are left out. |
+
+Each record counts for its own Funding Officer (EC26): a Pipeline of Rina's on Agus's Prospect counts for Rina's `openPipelines` and Agus's `prospects`.
+
+**After deactivating (EC20):** nothing is moved. Prospects, Pipelines and Activities keep their Funding Officer, Actual does not change, and every Prospect, Pipeline and Activity response (detail and list rows, and the dashboard rows) carries `"fundingOfficer": { "id", "name", "active": false }`, which the UI shows as "Funding Officer nonaktif".
+
+Server side: `getDeactivationPreview(id, { db })` from `@/server/funding-officers`.
+
 ### Rule: only an active Funding Officer can be assigned
 
 Applies to **every create or update that sets a Funding Officer** on a Prospect (E2-S1), a Pipeline (E3-S3) or an Activity (E4-S1). The Funding Officer sent must exist and be active. Otherwise nothing is saved and the response is one of:
