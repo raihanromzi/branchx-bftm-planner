@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { TemplateListScreen } from "@/components/pipeline-templates/template-list-screen";
 
-// Placeholder inside the app shell (E0-S4). Story E3-S2 builds this screen.
+// Pengaturan → Template Pipeline (E3-S2). The app shell's AdminGate has already checked the session; the
+// screen reads the list from GET /api/pipeline-templates on the client (ADR 0003, client-side reads).
 export const metadata: Metadata = { title: "Template Pipeline" };
 
 export default function PipelineTemplateSettingsPage() {
-  return (
-    <PlaceholderPage
-      title="Template Pipeline"
-      description="Tahap dan Tugas di Template Pipeline akan tampil di sini. Layar ini sedang disiapkan."
-    />
-  );
+  return <TemplateListScreen />;
 }

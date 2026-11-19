@@ -18,7 +18,7 @@ export const NETWORK_MESSAGE = "Tidak bisa terhubung. Periksa koneksi, lalu coba
 export const SERVER_MESSAGE = "Permintaan gagal diproses. Coba lagi sebentar lagi.";
 
 type Options = {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   /** A create's Idempotency-Key (api.md): generated once per form submission, reused on a retry. */
   idempotencyKey?: string;
@@ -49,7 +49,7 @@ export async function apiRequest<T>(path: string, { method = "GET", body, idempo
   try {
     json = await response.json();
   } catch {
-    // An empty or non-JSON body: handled below.
+    // An empty (204) or non-JSON body: handled below.
   }
 
   if (response.ok) return { ok: true, status: response.status, data: json as T };

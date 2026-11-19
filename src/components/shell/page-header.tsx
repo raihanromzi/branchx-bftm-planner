@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 /**
  * The page title (docs/design/E0-S4.md). Below 1024 px it is the 56 px top bar: 20 px, one line, with an
@@ -10,10 +10,13 @@ import type { ReactNode } from "react";
 export function PageHeader({
   title,
   backHref,
+  onBack,
   action,
 }: {
   title: string;
   backHref?: string;
+  /** Runs before the back link navigates; call `event.preventDefault()` to stay (an unsaved-changes guard). */
+  onBack?: (event: MouseEvent<HTMLAnchorElement>) => void;
   action?: ReactNode;
 }) {
   return (
@@ -21,6 +24,7 @@ export function PageHeader({
       {backHref && (
         <Link
           href={backHref}
+          onClick={onBack}
           aria-label="Kembali"
           className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-accent"
         >
