@@ -280,7 +280,7 @@ Release:
 
 ### E4-S3 acceptance criteria
 1. A Check-in needs a photo. The photo is stored in Vercel Blob first, and the Check-in is saved only after the photo is stored, so no Check-in exists without a photo. (EC38)
-2. Only JPEG, PNG and WebP up to 5 MB are accepted, checked on the server by content, not by file name. Otherwise the request is rejected with a message naming the limit. (EC37)
+2. Only JPEG, PNG and WebP up to 4 MB are accepted, checked on the server by content, not by file name. Otherwise the request is rejected with a message naming the limit. (EC37)
 3. With GPS within 200 m (haversine) of the Prospect's location, the Check-in is On-site. Further away, or without GPS, or when the Prospect has no location, it is Off-site. The distance and the reason are stored. (EC33, EC34, EC35)
 4. GPS with an accuracy worse than 200 m is treated as no GPS, with the reason "GPS tidak akurat". (EC33)
 5. A Check-in is rejected before the Activity's date in WIB, and on a Cancelled or Done Activity. (EC27, EC29)
@@ -289,7 +289,7 @@ Release:
 
 ### E4-S4 acceptance criteria
 1. The Check-in action appears on a Scheduled Activity only from its date in WIB onward. (EC29)
-2. The Admin takes a photo with the camera or picks one from the gallery. HEIC is converted when the browser can decode it. The photo is resized on the device to 1600 px on the long edge as JPEG before upload. A photo still over 5 MB, or not an image, shows a specific message. (EC37)
+2. The Admin takes a photo with the camera or picks one from the gallery. HEIC is converted when the browser can decode it. The photo is resized on the device to 1600 px on the long edge as JPEG before upload. A photo still over 4 MB, or not an image, shows a specific message. (EC37)
 3. GPS is requested with a 15-second timeout. If it is denied, slow or inaccurate, the screen shows "GPS tidak tersedia" (or the specific reason), and the Check-in can still be saved as Off-site. (EC33)
 4. The upload shows progress. The save button stays disabled until it finishes. A failed upload keeps the photo and note and offers a retry. (EC15, EC36, EC38)
 5. The screen says the photo must show the place or the activity, not a KTP or a passbook, and the note shows the customer-data hint. (EC42, EC43)

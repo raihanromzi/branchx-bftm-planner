@@ -15,7 +15,7 @@ Owned by the devops skill. Resource names only; credentials live in Vercel.
 | Separate dev and preview database | **Open** | Production, Preview and Development all point at the same Neon database for now. Before real data goes in, give Preview and Development their own Neon branch (Vercel → Storage → `bftm-planner-db` → settings, or the Neon console), then set `RUN_MIGRATIONS=true` for Preview. |
 | Shared Neon database migrated early | Done 2026-11-19 | At the user's request, migrations 0000–0005 from `feature/planner-v1` were applied to `bftm-planner-db` (shared by Production and Preview) before the release, so a test Admin could be added. The release deploy will see them as applied and skip them. **Never edit these migration files from now on.** |
 | Test Admin in the shared database | **Open: remove before real data** | `admin@contoh.id`, created 2026-11-19 at the user's request for testing. Its password is a known weak test password and the repository is public, so anyone with the password can sign in on the preview or production URL. Before any real Prospect goes in, delete it or reset its password (`npm run admin:seed -- admin@contoh.id` against the Neon URL), and create the real Admin. |
-| Vercel Blob | Not started | Needed when the first Check-in photo story is built. |
+| Vercel Blob | Done 2026-11-20 | Private store `bftm-planner-checkins` (`store_qJR2PZWwlkrXJra8`), region `sin1`, connected to Production, Preview and Development. `BLOB_READ_WRITE_TOKEN` is set in Vercel (ADR 0004). Tests use the in-memory store, so CI needs no token. |
 | Branch protection on `main` | Not started | Optional: require the CI check before merging. |
 
 ## Local development

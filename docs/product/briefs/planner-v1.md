@@ -104,7 +104,7 @@ Decided by: `user` means the user chose it in discovery. `proposal` means the pr
 | EC35 | A Check-in within or outside 200 m | Distance by haversine from the Prospect location. ≤ 200 m is On-site, otherwise Off-site, and the distance is shown. | user |
 | **Network and files** ||||
 | EC36 | A save fails midway | The form keeps the input and shows "Gagal menyimpan. Periksa koneksi lalu coba lagi." with a retry. No partial records are kept. | proposal |
-| EC37 | A large photo, or one in the wrong format | Resized on the device to 1600 px on the long edge as JPEG. Only images are accepted (JPEG, PNG, WebP, and HEIC if the browser can decode it). More than 5 MB after resizing is rejected with a clear message. | user |
+| EC37 | A large photo, or one in the wrong format | Resized on the device to 1600 px on the long edge as JPEG. Only images are accepted (JPEG, PNG, WebP, and HEIC if the browser can decode it). More than 4 MB after resizing is rejected with a clear message (changed from 5 MB on 2026-11-20; see ADR 0004). | user |
 | EC38 | A slow upload | A progress indicator is shown. The Check-in record is saved only after the photo is stored, so there is never a Check-in without a photo. | proposal |
 | **Permissions** ||||
 | EC39 | Signed out, or session expired | Every page and API redirects to or answers with sign-in. After sign-in, the Admin returns to the page they asked for. | proposal |

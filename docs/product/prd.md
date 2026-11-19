@@ -92,7 +92,7 @@ As in `CLAUDE.md`: Next.js (App Router) and TypeScript on Vercel, shadcn/ui on T
 ## Open questions
 
 1. On-site Radius: proposed 200 m. Confirm or change.
-2. Check-in photo limits: proposed JPEG, PNG or WebP, at most 5 MB after resizing on the device to 1600 px on the long edge.
+2. Check-in photo limits: proposed JPEG, PNG or WebP, at most 5 MB after resizing on the device to 1600 px on the long edge. **Resolved 2026-11-20:** the user chose at most 4 MB, because Vercel Functions reject request bodies above 4.5 MB (ADR 0004).
 3. Time zone: proposed WIB only. Does the team work in WITA or WIT?
 4. The default Pipeline Template's Stages and Tasks: proposed Identifikasi → Pendekatan → Presentasi → Negosiasi → Pembukaan Rekening. The BFTM should confirm the real Stages.
 5. Prospect Categories: proposed Sekolah, Pasar, Perusahaan, Instansi, Komunitas and Lainnya. Is a fixed list right, or should the Admin be able to edit it?

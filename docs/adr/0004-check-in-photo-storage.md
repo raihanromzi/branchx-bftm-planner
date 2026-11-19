@@ -7,7 +7,7 @@ date: 2026-11-18
 
 ## Context
 
-Every Check-in needs a photo (E4-S3). Photos are JPEG, PNG or WebP of 5 MB or less, checked on the server by content (E4-S3 #2), and visible only to a signed-in Admin (E4-S3 #7). A Check-in must never exist without its photo (EC38). Vercel Blob supports private stores. Vercel Functions accept request bodies far above 5 MB.
+Every Check-in needs a photo (E4-S3). Photos are JPEG, PNG or WebP of 4 MB or less, checked on the server by content (E4-S3 #2), and visible only to a signed-in Admin (E4-S3 #7). A Check-in must never exist without its photo (EC38). Vercel Blob supports private stores. Vercel Functions reject request and response bodies above 4.5 MB (`FUNCTION_PAYLOAD_TOO_LARGE`), so the limit is 4 MB, which leaves room for the multipart overhead. The user chose 4 MB over direct browser-to-Blob upload on 2026-11-20, replacing the 5 MB proposed at the PRD gate.
 
 ## Decision
 
@@ -19,6 +19,6 @@ Every Check-in needs a photo (E4-S3). Photos are JPEG, PNG or WebP of 5 MB or le
 ## Consequences
 
 - The content check happens before anything is stored, and the photo is never public.
-- Uploads pass through the function, which is acceptable at 5 MB or less. A very slow connection is handled with a progress bar and a retry (E4-S4).
+- Uploads pass through the function, which is acceptable at 4 MB or less. A very slow connection is handled with a progress bar and a retry (E4-S4).
 - Devops must create the private Blob store and connect it to the project before E4-S3 reaches a preview (`docs/ops/deploy.md`).
 - If the process dies after `put()` and before the transaction, an orphaned blob remains. This is rare and harmless. It holds no customer data, and a cleanup can be added later if needed.

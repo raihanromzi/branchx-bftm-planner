@@ -4,7 +4,7 @@ title: BFTM Planner v1
 phase: build
 branch: feature/planner-v1
 started: 2026-11-18
-updated: 2026-11-19
+updated: 2026-11-20
 ---
 
 # BFTM Planner v1
@@ -63,6 +63,9 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-19 build: E4-S1 `5ea14c8` Verified, with CI green. Promoted to production as `4ud14d6j2`, and migration 0006 was applied to Neon. The ESLint ignores now cover `playwright-report/` and `test-results/`.
 - 2026-11-19 build: E5-S1 `8d99eec` Verified, with CI green. Promoted to production as `1w9mcadg1`, and migration 0007 was applied to Neon. E1-S3 `6746ff6` Verified. Two follow-ups added to the backlog: the inactive Funding Officer filter for E1-S4, and what "open" means across the API.
 - 2026-11-19 build: E6-S1 `ba249de` Verified and promoted as `26ufront9`. The local unit tests had been stalling at random; restarting Docker Desktop fixed it, and the user chose that fix (option 1) over relying on CI. The user confirmed the map's latest-Pipeline rule and asked to build every remaining story. BUG-4 (`8067f2f`): `GET /api/activities` gained `prospectId`, for E2-S4.
+
+- 2026-11-20 resume: the user confirmed the uncommitted changes are interrupted development work and asked to finish all remaining features and pages. Resumed E2-S4 without discarding them.
+- 2026-11-20 architecture gate: the user chose a 4 MB Check-in photo limit rather than direct browser-to-Blob uploads. Vercel's 4.5 MB Function body limit contradicts ADR 0004's original premise. PRD, brief, backlog, design copy and ADR 0004 updated. Private Blob store `bftm-planner-checkins` provisioned in `sin1` and connected to all environments. The CLI overwrote `.env.local`; Docker database URLs were restored immediately, retaining the Blob credential.
 
 ## Blocked on
 
