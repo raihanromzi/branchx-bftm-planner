@@ -24,6 +24,15 @@ Run `vercel env pull .env.local` to fetch the Development variables. `.env.local
 
 ## Releases
 
+### 2026-11-19: E5-S1 promoted
+
+- The preview of `feature/planner-v1` at `8d99eec` (CI run 44458705500 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-1w9mcadg1`.
+- Migration `0007_target` (a new `target` table, additive only) was applied to the shared Neon database by the build; its log says "Migrations applied."
+- Checked:
+  - `/api/health` gives ok with the database ok;
+  - signed-out `/api/dashboard` and `/api/targets` give 401.
+- Rollback: `vercel rollback` to `branchx-bftm-planner-4ud14d6j2`. The new table can stay, because the older code does not read it.
+
 ### 2026-11-19: E4-S1 promoted
 
 - The preview of `feature/planner-v1` at `5ea14c8` (CI run 44454699622 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-4ud14d6j2`.

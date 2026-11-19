@@ -61,6 +61,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
   - "Make sure the data is on the production": the e2c948b preview was promoted to production without merging `main`. From now on, promote each Verified story's preview to production. Recorded in docs/ops/deploy.md.
 - 2026-11-19 build: E3-S2 `3f15d2b` Verified; BUG-3, found by CI, fixed in `37417f5`, and CI is green. Promoted to production as `b2hhado1x`.
 - 2026-11-19 build: E4-S1 `5ea14c8` Verified, with CI green. Promoted to production as `4ud14d6j2`, and migration 0006 was applied to Neon. The ESLint ignores now cover `playwright-report/` and `test-results/`.
+- 2026-11-19 build: E5-S1 `8d99eec` Verified, with CI green. Promoted to production as `1w9mcadg1`, and migration 0007 was applied to Neon. E1-S3 `6746ff6` Verified. Two follow-ups added to the backlog: the inactive Funding Officer filter for E1-S4, and what "open" means across the API.
 
 ## Blocked on
 
