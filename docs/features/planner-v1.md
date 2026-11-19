@@ -62,6 +62,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-19 build: E3-S2 `3f15d2b` Verified; BUG-3, found by CI, fixed in `37417f5`, and CI is green. Promoted to production as `b2hhado1x`.
 - 2026-11-19 build: E4-S1 `5ea14c8` Verified, with CI green. Promoted to production as `4ud14d6j2`, and migration 0006 was applied to Neon. The ESLint ignores now cover `playwright-report/` and `test-results/`.
 - 2026-11-19 build: E5-S1 `8d99eec` Verified, with CI green. Promoted to production as `1w9mcadg1`, and migration 0007 was applied to Neon. E1-S3 `6746ff6` Verified. Two follow-ups added to the backlog: the inactive Funding Officer filter for E1-S4, and what "open" means across the API.
+- 2026-11-19 build: E6-S1 `ba249de` Verified and promoted as `26ufront9`. The local unit tests had been stalling at random; restarting Docker Desktop fixed it, and the user chose that fix (option 1) over relying on CI. The user confirmed the map's latest-Pipeline rule and asked to build every remaining story. BUG-4 (`8067f2f`): `GET /api/activities` gained `prospectId`, for E2-S4.
 
 ## Blocked on
 
