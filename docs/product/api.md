@@ -966,14 +966,17 @@ Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations 
 | `pipeline` | The linked Pipeline with its **current** Outcome and Stage, or `null`. It was open when linked; it may have closed since. |
 | `version` | Cancel checks it. Archiving the Prospect's cancellation also increases it. |
 
-### `GET /api/activities?from=&to=&fundingOfficerId=`
+### `GET /api/activities?from=&to=&fundingOfficerId=&prospectId=`
 
 Every Activity, of any status, whose `startsAt` falls on the WIB days `from` to `to` (both included), **in time order** (then by id). No paging: a week is about 100 Activities (EC8). Answers `{ "items": [ <record>, … ] }`.
 
+With `prospectId` and no range (BUG-4, the Prospect detail page), it answers that Prospect's newest 100 Activities, **newest first**, like `GET /api/pipelines?prospectId=`.
+
 | Parameter | Meaning |
 |-----------|---------|
-| `from`, `to` | Required. WIB calendar days `"YYYY-MM-DD"`. `to` must not be before `from` ("Tanggal akhir tidak boleh sebelum tanggal awal."). A day that does not exist: "Tanggal tidak valid." |
+| `from`, `to` | Required, unless `prospectId` is given and both are left out. WIB calendar days `"YYYY-MM-DD"`. `to` must not be before `from` ("Tanggal akhir tidak boleh sebelum tanggal awal."). A day that does not exist: "Tanggal tidak valid." |
 | `fundingOfficerId` | Optional. A Funding Officer's id (a UUID). Blank counts as missing. |
+| `prospectId` | Optional. A Prospect's id (a UUID). Blank counts as missing. |
 
 | Status | Body | When |
 |--------|------|------|

@@ -437,6 +437,28 @@ describe("E4-S1 Activities", () => {
       expect(await listOk(`?from=2099-11-19&to=2099-11-19&fundingOfficerId=${MISSING_ID}`)).toEqual([]);
     });
 
+    it("BUG-4: lists one Prospect's Activities without a date range, newest first, at most 100", async () => {
+      const prospectId = await insertProspect("SDN 3 Cibinong");
+      const other = await insertProspect("SMP 1 Bogor");
+      await createOk({ prospectId, startsAt: "2099-11-19T02:00:00Z", purpose: "Nanti" });
+      await createOk({ prospectId, startsAt: inHours(-48), purpose: "Lalu" });
+      await createOk({ prospectId: other, startsAt: "2099-11-19T03:00:00Z" });
+      const items = await listOk(`?prospectId=${prospectId}`);
+      expect(items.map((item) => item.purpose)).toEqual(["Nanti", "Lalu"]);
+      expect(items.map((item) => item.overdue)).toEqual([false, true]);
+      // Combines with a date range and a Funding Officer.
+      expect(await listOk(`?prospectId=${prospectId}&from=2099-11-19&to=2099-11-19`)).toHaveLength(1);
+      expect(await listOk(`?prospectId=${prospectId}&fundingOfficerId=${agus.id}`)).toEqual([]);
+      for (let i = 0; i < 100; i++) await createOk({ prospectId: other, startsAt: inHours(i + 1) });
+      expect(await listOk(`?prospectId=${other}`)).toHaveLength(100);
+      const half = await list(`?prospectId=${prospectId}&from=2099-11-19`);
+      expect(half.status).toBe(400);
+      expect((await errorOf(half)).fields?.to).toBe("Wajib diisi.");
+      const bad = await list("?prospectId=sdn3");
+      expect(bad.status).toBe(400);
+      expect((await errorOf(bad)).fields?.prospectId).toBe("Isian tidak valid.");
+    });
+
     it("includes Done and Cancelled Activities, and flags only Scheduled ones in the past as overdue", async () => {
       const prospectId = await insertProspect("SDN 3 Cibinong");
       const late = await createOk({ prospectId, startsAt: inHours(-2), purpose: "Terlambat" });

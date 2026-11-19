@@ -536,7 +536,8 @@ export const activityStatusInput = z.object({ version });
 
 /**
  * The query string of GET /api/activities (E4-S1 criterion 4): `from` and `to` are WIB calendar
- * days, both included. fundingOfficerId is optional. Blank values count as missing.
+ * days, both included. fundingOfficerId is optional. With prospectId (BUG-4, the Prospect detail),
+ * the range is optional. Blank values count as missing.
  */
 export const activityListQuery = z.preprocess(
   (value) =>
@@ -545,11 +546,23 @@ export const activityListQuery = z.preprocess(
     ),
   z
     .object({
-      from: calendarDate,
-      to: calendarDate,
+      from: calendarDate.optional(),
+      to: calendarDate.optional(),
       fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
+      prospectId: z.string().regex(UUID_PATTERN).optional(),
     })
-    .refine((query) => query.to >= query.from, { path: ["to"], error: DATE_RANGE_MESSAGE }),
+    .superRefine((query, ctx) => {
+      // A range is required unless a Prospect is given; a half range is never allowed.
+      const noRange = query.from === undefined && query.to === undefined;
+      if (!(noRange && query.prospectId !== undefined)) {
+        for (const key of ["from", "to"] as const) {
+          if (query[key] === undefined) ctx.addIssue({ code: "custom", path: [key], message: REQUIRED_MESSAGE });
+        }
+      }
+      if (query.from !== undefined && query.to !== undefined && query.to < query.from) {
+        ctx.addIssue({ code: "custom", path: ["to"], message: DATE_RANGE_MESSAGE });
+      }
+    }),
 );
 
 // Targets and the dashboard (E5-S1). A Target is a count of new accounts for a Funding Officer and a

@@ -7,7 +7,7 @@
 // Activity cannot slip onto a Prospect being archived) and the linked Pipeline's row FOR SHARE (an
 // Outcome change takes FOR UPDATE). Cancelling locks the Activity's row FOR UPDATE.
 import "server-only";
-import { type SQL, and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { type SQL, and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { activity, fundingOfficer, pipeline, pipelineStage, prospect } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
@@ -39,6 +39,9 @@ export const PIPELINE_NOT_LINKABLE_MESSAGE = "Pipeline harus Pipeline berjalan m
 /** The idempotency scope of POST /api/activities. */
 export const CREATE_SCOPE = "activity.create";
 
+/** The most Activities one Prospect's history returns (BUG-4), as for its Pipelines. */
+export const PROSPECT_LIST_LIMIT = 100;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Options = { db?: Db | Tx; now?: Date };
@@ -69,7 +72,7 @@ const recordColumns = {
   stageName: pipelineStage.name,
 };
 
-function selectRecords(db: Db | Tx, where: SQL | undefined) {
+function selectRecords(db: Db | Tx, where: SQL | undefined, newestFirst = false) {
   return db
     .select(recordColumns)
     .from(activity)
@@ -81,7 +84,7 @@ function selectRecords(db: Db | Tx, where: SQL | undefined) {
       and(eq(pipelineStage.pipelineId, pipeline.id), eq(pipelineStage.position, pipeline.currentStagePosition)),
     )
     .where(where)
-    .orderBy(asc(activity.startsAt), asc(activity.id));
+    .orderBy(...(newestFirst ? [desc(activity.startsAt), desc(activity.id)] : [asc(activity.startsAt), asc(activity.id)]));
 }
 
 type RecordRow = Awaited<ReturnType<typeof selectRecords>>[number];
@@ -120,21 +123,23 @@ export async function getActivity(id: string, { db = getDb(), now = new Date() }
 
 /**
  * Every Activity starting on the WIB days `from` to `to` (both included), of any status, in time order
- * (E4-S1 criterion 4, EC8). Optionally one Funding Officer's.
+ * (E4-S1 criterion 4, EC8). Optionally one Funding Officer's, or one Prospect's. With a Prospect and
+ * no range (BUG-4, the Prospect detail): its newest PROSPECT_LIST_LIMIT, newest first.
  */
 // ponytail: no page limit, since a week is about 100 Activities (brief); add a range cap if Jadwal ever asks for months.
 export async function listActivities(
   query: z.output<typeof activityListQuery>,
   { db = getDb(), now = new Date() }: Options = {},
 ): Promise<ActivityRecord[]> {
-  const rows = await selectRecords(
-    db,
-    and(
-      gte(activity.startsAt, sql`(${query.from}::date)::timestamp at time zone 'Asia/Jakarta'`),
-      lt(activity.startsAt, sql`(${query.to}::date + 1)::timestamp at time zone 'Asia/Jakarta'`),
-      query.fundingOfficerId ? eq(activity.fundingOfficerId, query.fundingOfficerId) : undefined,
-    ),
+  const where = and(
+    query.from ? gte(activity.startsAt, sql`(${query.from}::date)::timestamp at time zone 'Asia/Jakarta'`) : undefined,
+    query.to ? lt(activity.startsAt, sql`(${query.to}::date + 1)::timestamp at time zone 'Asia/Jakarta'`) : undefined,
+    query.fundingOfficerId ? eq(activity.fundingOfficerId, query.fundingOfficerId) : undefined,
+    query.prospectId ? eq(activity.prospectId, query.prospectId) : undefined,
   );
+  const rows = query.from
+    ? await selectRecords(db, where)
+    : await selectRecords(db, where, true).limit(PROSPECT_LIST_LIMIT);
   return rows.map((row) => toRecord(row, now));
 }
 
