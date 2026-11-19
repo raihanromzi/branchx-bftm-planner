@@ -437,5 +437,6 @@ Resolved:
 
 | ID | Story | Criterion | Owner | Status | Report |
 |----|-------|-----------|-------|--------|--------|
+| BUG-3 | E3-S2 | EC18 | tester | Verified | CI run 44436939557: the EC18 test edited before the editor loaded, so it could load the new version and see no conflict; the E3-S1 delete got 422 last_template because the unit tests truncate `bftm_test`, the same database the e2e run used, removing "Umum". Fixed: the test waits for the loaded Stage, and CI gives e2e its own migrated database. |
 | BUG-2 | E2-S3 | 1 | frontend | Verified | [QA 2026-11-19-E2-S3](qa/2026-11-19-E2-S3.md#bug-2-focus-lost-after-a-server-field-error) |
 | BUG-1 | E0-S5 | 1 | frontend | Verified | [QA 2026-11-19-E0-S5](qa/2026-11-19-E0-S5.md#bug-1-open-redirect-through-dot-segments) |

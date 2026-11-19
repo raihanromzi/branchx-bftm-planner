@@ -379,6 +379,8 @@ test.describe("E3-S2 Pipeline Template screen", () => {
   test("EC18: a version conflict shows the reload message, and Muat ulang loads the latest", async ({ page }) => {
     const template = await createTemplate(page, e2eName("Sekolah"), THREE_STAGES);
     await openEditor(page, template);
+    // The editor must hold the old version before the other save, or it loads the new one and no conflict happens.
+    await expect(stageInput(page, 1)).toHaveValue("Identifikasi");
     // Someone else saves meanwhile.
     const latest = await getTemplate(page, template.id);
     const renamed = await page.request.put(`/api/pipeline-templates/${template.id}`, {

@@ -84,8 +84,20 @@ jobs:
         if: steps.app.outputs.present == 'true'
         run: npx playwright install --with-deps chromium
 
+      # The unit tests truncate bftm_test, which removes the default template "Umum". The e2e tests get
+      # their own freshly migrated database, as bftm_dev is locally.
+      - name: Create and migrate e2e database
+        if: steps.app.outputs.present == 'true'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bftm_e2e
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/bftm_test -c 'create database bftm_e2e'
+          npm run db:migrate
+
       - name: End-to-end tests (mobile, tablet, desktop)
         if: steps.app.outputs.present == 'true'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bftm_e2e
         run: npm run test:e2e
 
       - name: Build
