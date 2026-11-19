@@ -408,14 +408,25 @@ Archive sets `archivedAt`: the Prospect leaves the default list but can still be
 
 | Status | Body | When |
 |--------|------|------|
-| `200` | The record (not wrapped), with `archived` changed and `version` increased by 1, or unchanged (see above) | Done. |
+| `200` | The record (not wrapped), with `archived` changed and `version` increased by 1, or unchanged (see above), plus `cancelledActivities` (archive only, see below) | Done. |
 | `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
 | `403` | `forbidden_origin` | Cross-origin request. |
 | `404` | `not_found` | Unknown id. |
 | `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
 | `422` | `{ "error": { "code": "prospect_has_open_pipeline", "message": "Tutup atau tunda Pipeline dulu." } }` | Archive only: the Prospect has an **open** Pipeline (E3-S3 #8, EC19). Close it (Won or Lost) or put it On Hold first. On Hold, Won and Lost Pipelines do not block archiving (decided by the user on 2026-11-19). An On Hold Pipeline of an archived Prospect cannot be resumed (`422 prospect_archived`) until the Prospect is restored. |
 
-All rules for archiving run in the one archive transaction, with the Prospect's row locked (the lock starting and reopening a Pipeline also take, so no Pipeline can open meanwhile). E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
+All rules for archiving run in the one archive transaction, with the Prospect's row locked (the lock starting and reopening a Pipeline also take, so no Pipeline can open meanwhile; scheduling an Activity takes a shared lock on it, so no Activity can be added meanwhile).
+
+**Archiving cancels future Activities (E4-S1 #5, EC19).** In the same transaction, archive sets every **Scheduled** Activity of the Prospect whose `startsAt` is after now to `cancelled` (each Activity's `version` + 1). Past Scheduled (Overdue) Activities, Done and Cancelled ones are left alone. The archive answer adds `"cancelledActivities": <number>` to the record; it is `0` on an idempotent repeat. A refused archive (`409`, `422`) cancels nothing. Restore does not bring cancelled Activities back.
+
+### `GET /api/prospects/:id/archive-preview`
+
+What archiving would cancel, for the confirmation (E2-S4 #4): "2 Kegiatan mendatang akan dibatalkan." Changes nothing.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | `{ "futureScheduledActivities": 2 }` | Found. The count of the Prospect's Scheduled Activities after now (the ones archive would cancel). |
+| `404` | `not_found` | Unknown id. |
 
 ## Pipeline Templates
 
@@ -884,6 +895,131 @@ Removes one Task from its Pipeline (EC22). The template and other Pipelines keep
 ### Server-side helpers (for later stories)
 
 From `@/server/pipelines`: `getPipeline(id, { db, now })`, `listPipelinesForProspect(prospectId)`, and `isOpenOrOnHold()` (the Drizzle condition "outcome is null or on_hold"), for E1-S3's open-work counts and the dashboard. Every mutation takes an optional `now`, so tests can fix the clock.
+
+## Activities
+
+Implemented in E4-S1. An Activity is a field visit or meeting with a Prospect, assigned to a Funding Officer, at a date and time, optionally linked to the Prospect's open Pipeline, with a purpose. UI: "Kegiatan". An Activity is never deleted (EC22): there is no `DELETE`, `PATCH` or `PUT` on these paths (`405`). A cancelled visit is re-planned as a new Activity.
+
+Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations are refused cross-origin (`403 forbidden_origin`). An `:id` that is unknown or not a UUID is `404 not_found`. Responses are sent with `Cache-Control: no-store`.
+
+### Status
+
+| Status | UI | Becomes | How |
+|--------|----|---------|-----|
+| `scheduled` | Terjadwal | `cancelled` | `POST /api/activities/:id/cancel` |
+| `scheduled` | Terjadwal | `done` | Only by recording a Check-in (E4-S3) |
+| `done` | Selesai | (final) | |
+| `cancelled` | Dibatalkan | (final) | |
+
+`ACTIVITY_STATUSES` and `ACTIVITY_STATUS_LABELS` are in `@/lib/validation`. Archiving a Prospect also cancels its future Scheduled Activities (see Prospects, archive).
+
+**Overdue (EC28, EC30):** `overdue` is `true` when the Activity is `scheduled` and its `startsAt` has passed. It is computed on every read, not stored. An Activity created with a time in the past is allowed (to record a visit after the fact) and is Overdue from the moment it is saved. Done and Cancelled are never Overdue. UI: "Terlambat".
+
+**Times:** `startsAt` is stored in UTC and answered as ISO 8601 UTC (`"2026-11-20T02:30:00.000Z"`). The client sends it with an explicit zone; the form enters WIB, so it sends `"2026-11-20T09:30:00+07:00"`. Days in the list filter are WIB calendar days.
+
+### The record
+
+`GET /api/activities/:id`, create, cancel and each list row answer:
+
+```json
+{
+  "id": "a41c…",
+  "prospect": { "id": "0b7e…", "name": "SDN 3 Cibinong", "archived": false },
+  "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+  "pipeline": { "id": "7d2a…", "outcome": null, "currentStage": { "position": 3, "name": "Presentasi" } },
+  "startsAt": "2026-11-20T02:30:00.000Z",
+  "purpose": "Presentasi tabungan pelajar",
+  "status": "scheduled",
+  "overdue": false,
+  "version": 1,
+  "createdAt": "2026-11-19T02:15:00.000Z",
+  "updatedAt": "2026-11-19T02:15:00.000Z"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `prospect` | `archived: true` once the Prospect is archived later. |
+| `fundingOfficer` | The Activity's own Funding Officer. `active: false` when deactivated later. |
+| `pipeline` | The linked Pipeline with its **current** Outcome and Stage, or `null`. It was open when linked; it may have closed since. |
+| `version` | Cancel checks it. Archiving the Prospect's cancellation also increases it. |
+
+### `GET /api/activities?from=&to=&fundingOfficerId=`
+
+Every Activity, of any status, whose `startsAt` falls on the WIB days `from` to `to` (both included), **in time order** (then by id). No paging: a week is about 100 Activities (EC8). Answers `{ "items": [ <record>, … ] }`.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `from`, `to` | Required. WIB calendar days `"YYYY-MM-DD"`. `to` must not be before `from` ("Tanggal akhir tidak boleh sebelum tanggal awal."). A day that does not exist: "Tanggal tidak valid." |
+| `fundingOfficerId` | Optional. A Funding Officer's id (a UUID). Blank counts as missing. |
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | `{ "items": [ … ] }` | Always. |
+| `400` | `validation` with `fields.<parameter>` | A parameter is missing or invalid. |
+
+### `POST /api/activities`
+
+Schedules an Activity. Needs an `Idempotency-Key` header (scope `activity.create`).
+
+```json
+{
+  "prospectId": "0b7e…",
+  "fundingOfficerId": "6f1c…",
+  "startsAt": "2026-11-20T09:30:00+07:00",
+  "pipelineId": "7d2a…",
+  "purpose": "Presentasi tabungan pelajar"
+}
+```
+
+| Field | Rules |
+|-------|-------|
+| `prospectId` | Required. A Prospect that exists and is not archived. |
+| `fundingOfficerId` | Required. Any active Funding Officer: see [the rule](#rule-only-an-active-funding-officer-can-be-assigned). It need not be the Prospect's own (the form defaults to it). |
+| `startsAt` | Required. ISO 8601 date and time **with** a zone (`Z` or `+07:00`); otherwise "Tanggal dan jam tidak valid." A time in the past is allowed (EC28). |
+| `pipelineId` | Optional (missing, `null` or blank is none). Must be the Prospect's **open** Pipeline (not On Hold, Won or Lost). |
+| `purpose` | Required free text (E0-S6): trimmed, at most 500 characters, with the customer-number guard. |
+
+Any other key is ignored and never stored (ADR 0001).
+
+| Status | Body | When |
+|--------|------|------|
+| `201` | The record | Created. |
+| `200` | The same record, read again | A repeat with the same `Idempotency-Key`. Nothing new is created. |
+| `400` | `validation` with `fields`, `invalid_json`, or `idempotency_key` | Bad input or a missing or malformed key. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `422` | `prospect_not_found` ("Prospect tidak ditemukan."), `prospect_archived` ("Prospect ini diarsipkan. Pulihkan dulu untuk mengubahnya.") | The Prospect is unknown or archived. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer cannot be assigned. |
+| `422` | `{ "error": { "code": "pipeline_not_linkable", "message": "Pipeline harus Pipeline berjalan milik Prospect ini." } }` | The Pipeline is unknown, of another Prospect, or not open. |
+| `422` | `idempotency_key_reused` | The key was used for a different kind of create. |
+
+A `422` does not keep the key, so a corrected retry with it is allowed.
+
+### `GET /api/activities/:id`
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record | Found. |
+| `404` | `not_found` | Unknown id. |
+
+### `POST /api/activities/:id/cancel`
+
+Cancels a Scheduled Activity (EC27). Body: `{ "version": 1 }`.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The record, `status: "cancelled"`, `overdue: false`, `version` + 1 | Cancelled. |
+| `400` | `validation` with `fields.version`, or `invalid_json` | No valid `version`. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `404` | `not_found` | Unknown id. |
+| `409` | `version_conflict` | The Activity changed since the client loaded it. |
+| `422` | `{ "error": { "code": "invalid_transition", "message": "Kegiatan ini sudah Dibatalkan. Statusnya tidak bisa diubah." } }` (or "…sudah Selesai…") | The Activity is Cancelled or Done. Checked before the version. |
+
+The zod schemas are exported from `@/lib/validation`: `createActivityInput`, `activityStatusInput`, `activityListQuery`, `activityStartsAt`, and the messages `STARTS_AT_MESSAGE` and `DATE_RANGE_MESSAGE`.
+
+### Server-side helpers (for later stories)
+
+From `@/server/activities`: `getActivity(id, { db, now })`, `listActivities({ from, to, fundingOfficerId? }, { db, now })` and `cancelActivity`. E4-S3 sets `done` inside its Check-in transaction. From `@/server/prospects`: `getArchivePreview(id)`.
 
 ## Health
 

@@ -16,7 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { PIPELINE_OUTCOMES, PROSPECT_CATEGORIES } from "@/lib/validation";
+import { ACTIVITY_STATUSES, FREE_TEXT_MAX, PIPELINE_OUTCOMES, PROSPECT_CATEGORIES } from "@/lib/validation";
 
 /**
  * Idempotency-Key values sent with create requests (ADR 0003), so a retried create returns
@@ -314,5 +314,42 @@ export const pipelineTask = pgTable(
     uniqueIndex("pipeline_task_stage_id_position_idx").on(table.stageId, table.position),
     check("pipeline_task_position", sql`${table.position} >= 1`),
     check("pipeline_task_name_length", sql`char_length(${table.name}) between 1 and 120`),
+  ],
+);
+
+/** An Activity's status (E4-S1). UI labels in ACTIVITY_STATUS_LABELS. */
+export const activityStatus = pgEnum("activity_status", ACTIVITY_STATUSES);
+
+/**
+ * A field visit or meeting with a Prospect, for a Funding Officer, at starts_at (UTC), optionally
+ * linked to a Pipeline of the same Prospect (E4-S1). Scheduled → Cancelled by the Admin, Scheduled →
+ * Done only by a Check-in (E4-S3); Done and Cancelled are final (EC27). Never deleted (EC22).
+ * Overdue is computed, not stored: Scheduled with starts_at passed (EC30). Holds no customer data
+ * (ADR 0001): the purpose passes the customer-number guard.
+ */
+export const activity = pgTable(
+  "activity",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    prospectId: uuid("prospect_id")
+      .notNull()
+      .references(() => prospect.id, { onDelete: "restrict" }),
+    fundingOfficerId: uuid("funding_officer_id")
+      .notNull()
+      .references(() => fundingOfficer.id, { onDelete: "restrict" }),
+    pipelineId: uuid("pipeline_id").references(() => pipeline.id, { onDelete: "restrict" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    purpose: text("purpose").notNull(),
+    status: activityStatus("status").notNull().default("scheduled"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("activity_starts_at_idx").on(table.startsAt),
+    index("activity_funding_officer_id_starts_at_idx").on(table.fundingOfficerId, table.startsAt),
+    index("activity_prospect_id_starts_at_idx").on(table.prospectId, table.startsAt),
+    index("activity_pipeline_id_idx").on(table.pipelineId),
+    check("activity_purpose_length", sql`char_length(${table.purpose}) between 1 and ${sql.raw(String(FREE_TEXT_MAX))}`),
   ],
 );

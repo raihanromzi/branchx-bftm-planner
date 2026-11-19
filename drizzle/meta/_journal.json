@@ -43,6 +43,13 @@
       "when": 1795043868805,
       "tag": "0005_pipeline",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795060018318,
+      "tag": "0006_activity",
+      "breakpoints": true
     }
   ]
 }

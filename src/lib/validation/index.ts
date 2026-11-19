@@ -475,3 +475,62 @@ export const pipelineListQuery = z.object({
     .string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : INVALID_MESSAGE) })
     .regex(UUID_PATTERN),
 });
+
+// Activities (E4-S1). A field visit or meeting with a Prospect, for a Funding Officer, at a time
+// stored in UTC. Statuses move only along the transitions in api.md (Activities).
+
+/** The Activity status values the API sends. UI labels in ACTIVITY_STATUS_LABELS. */
+export const ACTIVITY_STATUSES = ["scheduled", "done", "cancelled"] as const;
+export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
+export const ACTIVITY_STATUS_LABELS: Record<ActivityStatus, string> = {
+  scheduled: "Terjadwal",
+  done: "Selesai",
+  cancelled: "Dibatalkan",
+};
+export const STARTS_AT_MESSAGE = "Tanggal dan jam tidak valid.";
+export const DATE_RANGE_MESSAGE = "Tanggal akhir tidak boleh sebelum tanggal awal.";
+
+/** An ISO 8601 date and time with a zone ("2026-11-20T09:00:00+07:00" or "…Z"), as a Date. */
+export const activityStartsAt = z
+  .string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : STARTS_AT_MESSAGE) })
+  .pipe(z.iso.datetime({ offset: true, error: STARTS_AT_MESSAGE }))
+  .transform((value) => new Date(value));
+
+const optionalId = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((value) => (value ? value : null));
+
+/**
+ * Scheduling an Activity (E4-S1 criterion 1). A time in the past is allowed (EC28). pipelineId is
+ * optional (missing, null or blank is none). Needs an Idempotency-Key.
+ */
+export const createActivityInput = z.object({
+  prospectId: requiredId,
+  fundingOfficerId: requiredId,
+  startsAt: activityStartsAt,
+  pipelineId: optionalId,
+  purpose: freeText(),
+});
+
+/** Cancelling an Activity (E4-S1 criterion 3): only the version the client loaded. */
+export const activityStatusInput = z.object({ version });
+
+/**
+ * The query string of GET /api/activities (E4-S1 criterion 4): `from` and `to` are WIB calendar
+ * days, both included. fundingOfficerId is optional. Blank values count as missing.
+ */
+export const activityListQuery = z.preprocess(
+  (value) =>
+    Object.fromEntries(
+      Object.entries(value as Record<string, string>).filter(([, item]) => typeof item === "string" && item.trim() !== ""),
+    ),
+  z
+    .object({
+      from: calendarDate,
+      to: calendarDate,
+      fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
+    })
+    .refine((query) => query.to >= query.from, { path: ["to"], error: DATE_RANGE_MESSAGE }),
+);

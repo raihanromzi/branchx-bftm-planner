@@ -20,6 +20,7 @@ import * as listRoute from "@/app/api/prospects/route";
 import * as itemRoute from "@/app/api/prospects/[id]/route";
 import * as archiveRoute from "@/app/api/prospects/[id]/archive/route";
 import * as restoreRoute from "@/app/api/prospects/[id]/restore/route";
+import * as archivePreviewRoute from "@/app/api/prospects/[id]/archive-preview/route";
 import { migrateTestDatabase, testDatabaseUrl, truncateAllTables } from "./support/test-db";
 
 const TEST_URL = testDatabaseUrl();
@@ -872,12 +873,14 @@ describe("E2-S1 Prospects", () => {
           entry.isDirectory() ? walk(join(path, entry.name)) : entry.name.startsWith("route.") ? [join(path, entry.name)] : [],
         );
       })(dir);
-      expect(files.length).toBe(4);
-      for (const route of [listRoute, itemRoute, archiveRoute, restoreRoute]) expect("DELETE" in route).toBe(false);
+      // archive-preview was added by E4-S1 (EC19).
+      expect(files.length).toBe(5);
+      for (const route of [listRoute, itemRoute, archiveRoute, restoreRoute, archivePreviewRoute]) expect("DELETE" in route).toBe(false);
       expect(Object.keys(listRoute).sort()).toEqual(["GET", "POST"]);
       expect(Object.keys(itemRoute).sort()).toEqual(["GET", "PATCH"]);
       expect(Object.keys(archiveRoute)).toEqual(["POST"]);
       expect(Object.keys(restoreRoute)).toEqual(["POST"]);
+      expect(Object.keys(archivePreviewRoute)).toEqual(["GET"]);
     });
 
     it("the database refuses to delete a Funding Officer who still has Prospects", async () => {

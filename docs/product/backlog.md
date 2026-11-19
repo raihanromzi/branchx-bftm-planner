@@ -257,7 +257,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E4-S1 | As an Admin, I want to schedule and cancel Activities for my Funding Officers, so that the week's field work is planned. | 5 | backend | E2-S1, E3-S3 | Todo |
+| E4-S1 | As an Admin, I want to schedule and cancel Activities for my Funding Officers, so that the week's field work is planned. | 5 | backend | E2-S1, E3-S3 | Verified |
 | E4-S2 | As an Admin, I want a Jadwal screen and an Activity form, so that I can plan a week for the team in under 10 minutes. | 5 | frontend | E4-S1, E2-S3 | Todo |
 | E4-S3 | As an Admin, I want to record a Check-in with a photo and GPS, so that every visit has proof and is marked On-site or Off-site. | 5 | backend | E4-S1 | Todo |
 | E4-S4 | As an Admin, I want a Check-in screen that works on a weak connection, so that I can prove a visit in a few taps. | 5 | frontend | E4-S3, E4-S2 | Todo |

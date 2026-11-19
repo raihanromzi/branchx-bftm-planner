@@ -2,9 +2,9 @@
 // only archived and restored. Route Handlers live in src/app/api/prospects/ (ADR 0003).
 // ADR 0001: a Prospect is never an account holder; the only person stored is its Contact Person.
 import "server-only";
-import { type SQL, and, asc, count, eq, exists, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { type SQL, and, asc, count, eq, exists, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { fundingOfficer, pipeline, pipelineStage, prospect } from "@/db/schema";
+import { activity, fundingOfficer, pipeline, pipelineStage, prospect } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
 import { assertAssignableFundingOfficer } from "@/server/funding-officers";
 import { ApiError, invalidState, notFound, updateWithVersion } from "@/server/http";
@@ -307,22 +307,40 @@ export async function updateProspect(
   });
 }
 
+/** The archive preview (E4-S1 criterion 5, EC19): what archiving would cancel. */
+export type ArchivePreview = { futureScheduledActivities: number };
+/** Archive's answer: the record plus how many future Scheduled Activities it cancelled (EC19). */
+export type ArchivedProspect = ProspectRecord & { cancelledActivities: number };
+
+/** The Prospect's Scheduled Activities that start after now. Read from the activity table directly (docs/architecture.md). */
+function futureScheduled(id: string) {
+  return and(eq(activity.prospectId, id), eq(activity.status, "scheduled"), gt(activity.startsAt, sql`now()`));
+}
+
+/** How many future Scheduled Activities archiving would cancel. 404 for an unknown id. */
+export async function getArchivePreview(id: string, { db = getDb() }: Options = {}): Promise<ArchivePreview> {
+  await getProspect(id, { db });
+  const [{ n }] = await db.select({ n: count() }).from(activity).where(futureScheduled(id));
+  return { futureScheduledActivities: n };
+}
+
 /**
- * Archives a Prospect: it leaves the default list but can still be opened and restored (EC40).
- * Idempotent: an already archived Prospect is returned unchanged whatever the version.
+ * Archives a Prospect: it leaves the default list but can still be opened and restored (EC40), and
+ * its future Scheduled Activities are cancelled in the same transaction (E4-S1 criterion 5, EC19).
+ * Idempotent: an already archived Prospect is returned unchanged whatever the version, with
+ * cancelledActivities 0.
  *
- * This is the single entry point for archiving, and it runs in one transaction with the row locked,
- * so the rules later stories add belong here, before the update: the open-Pipeline guard (E3-S3,
- * EC19: 422 prospect_has_open_pipeline, "Tutup atau tunda Pipeline dulu.", open only, not On Hold) and cancelling the
- * Prospect's future Activities (E4-S1).
+ * This is the single entry point for archiving, and it runs in one transaction with the row locked
+ * (createActivity takes FOR SHARE on it, so no Activity can be added meanwhile).
  */
 export async function archiveProspect(
   id: string,
   input: z.output<typeof prospectStatusInput>,
   { db = getDb() }: { db?: Db } = {},
-): Promise<ProspectRecord> {
+): Promise<ArchivedProspect> {
   return db.transaction(async (tx) => {
     const current = await lockProspect(tx, id);
+    let cancelledActivities = 0;
     if (current.archivedAt === null) {
       // EC19: a Prospect with an open Pipeline cannot be archived. On Hold does not block it (decided by
       // the user on 2026-11-19: "tunda" is a way out), and an On Hold Pipeline cannot be resumed while its
@@ -334,8 +352,14 @@ export async function archiveProspect(
         .limit(1);
       if (open) throw invalidState(PROSPECT_HAS_OPEN_PIPELINE_MESSAGE, "prospect_has_open_pipeline");
       await updateWithVersion(prospect, id, input.version, { archivedAt: sql`now()` }, { db: tx });
+      const cancelled = await tx
+        .update(activity)
+        .set({ status: "cancelled", version: sql`${activity.version} + 1`, updatedAt: sql`now()` })
+        .where(futureScheduled(id))
+        .returning({ id: activity.id });
+      cancelledActivities = cancelled.length;
     }
-    return getProspect(id, { db: tx });
+    return { ...(await getProspect(id, { db: tx })), cancelledActivities };
   });
 }
 
