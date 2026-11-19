@@ -24,6 +24,14 @@ Run `vercel env pull .env.local` to fetch the Development variables. `.env.local
 
 ## Releases
 
+### 2026-11-19: E1-S3 promoted
+
+- The preview of `feature/planner-v1` at `6746ff6` (CI run 44459976222 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-ak258wd8d`. There was no new migration.
+- Checked:
+  - `/api/health` gives ok;
+  - signed-out `/api/funding-officers/:id/deactivation-preview` gives 401.
+- Rollback: `vercel rollback` to `branchx-bftm-planner-1w9mcadg1`.
+
 ### 2026-11-19: E5-S1 promoted
 
 - The preview of `feature/planner-v1` at `8d99eec` (CI run 44458705500 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-1w9mcadg1`.
