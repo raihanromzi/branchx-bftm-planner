@@ -139,6 +139,16 @@ export async function listActivities(
 }
 
 /**
+ * Every Overdue Activity (EC30): Scheduled and its time has passed, the same rule as `overdue` in
+ * toRecord. Oldest first (E5-S1 criterion 5).
+ */
+// ponytail: no limit, since Overdue Activities are a handful per Funding Officer; add one if the dashboard ever pages them.
+export async function listOverdueActivities({ db = getDb(), now = new Date() }: Options = {}): Promise<ActivityRecord[]> {
+  const rows = await selectRecords(db, and(eq(activity.status, "scheduled"), lt(activity.startsAt, now)));
+  return rows.map((row) => toRecord(row, now));
+}
+
+/**
  * Schedules an Activity and returns its id (E4-S1 criterion 1). Run inside withIdempotency's
  * transaction, so a refusal rolls back the key too. A time in the past is allowed (EC28).
  * 422 prospect_not_found, prospect_archived, the Funding Officer rule, and pipeline_not_linkable

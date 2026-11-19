@@ -894,7 +894,7 @@ Removes one Task from its Pipeline (EC22). The template and other Pipelines keep
 
 ### Server-side helpers (for later stories)
 
-From `@/server/pipelines`: `getPipeline(id, { db, now })`, `listPipelinesForProspect(prospectId)`, and `isOpenOrOnHold()` (the Drizzle condition "outcome is null or on_hold"), for E1-S3's open-work counts and the dashboard. Every mutation takes an optional `now`, so tests can fix the clock.
+From `@/server/pipelines`: `getPipeline(id, { db, now })`, `listPipelinesForProspect(prospectId)`, `isTaskOverdue(task, today)` and `listOverdueTasks({ db, now })` (the one Task Overdue rule, EC30), and `isOpenOrOnHold()` (the Drizzle condition "outcome is null or on_hold"), for E1-S3's open-work counts and the dashboard. Every mutation takes an optional `now`, so tests can fix the clock.
 
 ## Activities
 
@@ -1019,7 +1019,114 @@ The zod schemas are exported from `@/lib/validation`: `createActivityInput`, `ac
 
 ### Server-side helpers (for later stories)
 
-From `@/server/activities`: `getActivity(id, { db, now })`, `listActivities({ from, to, fundingOfficerId? }, { db, now })` and `cancelActivity`. E4-S3 sets `done` inside its Check-in transaction. From `@/server/prospects`: `getArchivePreview(id)`.
+From `@/server/activities`: `getActivity(id, { db, now })`, `listActivities({ from, to, fundingOfficerId? }, { db, now })`, `listOverdueActivities({ db, now })` and `cancelActivity`. E4-S3 sets `done` inside its Check-in transaction. From `@/server/prospects`: `getArchivePreview(id)`.
+
+## Targets
+
+Implemented in E5-S1. A Target is the number of new accounts set for a Funding Officer for a calendar month (UI: "Target", unit "rekening"). There is one per Funding Officer and month (EC17): setting it again updates it. Actual (UI: "Realisasi") is never entered: it is the sum of Accounts Opened on Pipelines Won in the month, by Won date (a WIB day, so 23.30 WIB on 31 January counts in January, EC31), credited to the **Pipeline's** Funding Officer (EC26). Reopening a Won Pipeline lowers it (EC25). A Target is never deleted: there is no `DELETE`.
+
+Every endpoint needs an Admin session (`401`). `PUT` is refused cross-origin (`403 forbidden_origin`). Responses are sent with `Cache-Control: no-store`. Months are `"YYYY-MM"` (2000 to 2099); otherwise "Bulan tidak valid.".
+
+### `GET /api/targets?month=`
+
+`month` is optional (blank counts as missing); the default is the current WIB month. One row per active Funding Officer, plus an inactive one only when it has a Target or an Actual that month, by name.
+
+```json
+{
+  "month": "2026-11",
+  "items": [
+    {
+      "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true },
+      "target": 400,
+      "version": 2,
+      "actual": 120
+    },
+    { "fundingOfficer": { "id": "8a2d…", "name": "Dedi Pratama", "active": true }, "target": null, "version": null, "actual": 0 }
+  ]
+}
+```
+
+`target: null` means no Target is set (EC4), not 0. `version` is the Target's, for `PUT`; `null` when none is set.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | As above | Always. |
+| `400` | `validation` with `fields.month` | An invalid month. |
+
+### `PUT /api/targets`
+
+Sets one Funding Officer's Target for a month. Not a create, so no `Idempotency-Key`: it is an upsert of the one row.
+
+```json
+{ "fundingOfficerId": "6f1c…", "month": "2026-11", "accounts": 450, "version": 2 }
+```
+
+| Field | Rules |
+|-------|-------|
+| `fundingOfficerId` | Required. An active Funding Officer: see [the rule](#rule-only-an-active-funding-officer-can-be-assigned). |
+| `month` | Required. `"YYYY-MM"`. |
+| `accounts` | Required. An integer from 0 to 100,000; otherwise "Target harus bilangan bulat 0 sampai 100.000." (EC10). |
+| `version` | Required. The `version` from `GET /api/targets`: `null` when the month had no Target, otherwise the loaded version. |
+
+Answers `{ "fundingOfficerId", "month", "accounts", "version" }`. The first save of a month answers `version: 1`; each change adds 1. Sending the value already stored answers the record unchanged, whatever the `version` (a double tap is not a conflict).
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | The Target | Saved (inserted or updated). |
+| `400` | `validation` with `fields`, or `invalid_json` | Bad input. |
+| `403` | `forbidden_origin` | Cross-origin request. |
+| `409` | `version_conflict` | The Target changed since the client loaded it, or was set by someone else while the client had `version: null` (EC18). Reload. |
+| `422` | `funding_officer_inactive`, `funding_officer_not_found` | The Funding Officer cannot be given a Target. |
+
+The zod schemas are exported from `@/lib/validation`: `setTargetInput`, `monthQuery`, `calendarMonth`, `targetAccounts`, and `TARGET_MAX`, `TARGET_MESSAGE`, `MONTH_MESSAGE`.
+
+## Dashboard
+
+### `GET /api/dashboard?month=`
+
+Implemented in E5-S1. Computed on every read; nothing is stored. `month` is optional (default: the current WIB month); an invalid one is `400 validation` with `fields.month`. Needs an Admin session (`401`). `Cache-Control: no-store`.
+
+```json
+{
+  "month": "2026-11",
+  "previousMonth": "2026-10",
+  "today": "2026-11-19",
+  "team": { "target": 1300, "actual": 930, "previousActual": 1020 },
+  "fundingOfficers": [
+    { "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true }, "target": 600, "actual": 520, "previousActual": 410 },
+    { "fundingOfficer": { "id": "8a2d…", "name": "Dedi Pratama", "active": true }, "target": null, "actual": 320, "previousActual": 0 }
+  ],
+  "overdue": {
+    "tasks": [
+      {
+        "id": "c3e1…",
+        "name": "Kirim proposal",
+        "dueOn": "2026-11-15",
+        "pipeline": { "id": "7d2a…", "stage": { "position": 2, "name": "Pendekatan" } },
+        "prospect": { "id": "0b7e…", "name": "SDN 3 Cibinong" },
+        "fundingOfficer": { "id": "6f1c…", "name": "Rina Kartika", "active": true }
+      }
+    ],
+    "activities": [ <Activity record>, … ]
+  },
+  "upcoming": { "today": [ <Activity record>, … ], "next7Days": [ <Activity record>, … ] },
+  "pipelinesByStage": [
+    {
+      "template": { "id": "1a9b…", "name": "Umum" },
+      "stages": [ { "position": 1, "name": "Identifikasi", "count": 12 }, { "position": 3, "name": "Presentasi", "count": 5 } ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `team`, `fundingOfficers[]` | For `month`: `target` (null when not set, EC4; the team's is the sum of the set Targets, null when none is set), `actual`, and `previousActual` (Actual of `previousMonth`). Funding Officers as in `GET /api/targets`. |
+| `overdue.tasks` | Overdue now, whatever `month` (EC30): due date before today in WIB, unticked, on an open Pipeline (not On Hold, Won or Lost). Oldest due date first. |
+| `overdue.activities` | Overdue now: still `scheduled` and `startsAt` passed. Oldest first. [Activity records](#the-record-4) with `overdue: true`. |
+| `upcoming.today` | Activities starting today (WIB), of any status, in time order. Relative to `today`, whatever `month`; the client hides them for another month (design E5-S3). |
+| `upcoming.next7Days` | Activities on the next 7 WIB days after today (tomorrow to today + 7), of any status, in time order. |
+| `pipelinesByStage` | Open Pipelines now (no Outcome; On Hold not counted), by their current Stage. Grouped by template (by name), then by Stage position and name. Only Stages with at least one Pipeline. |
 
 ## Health
 

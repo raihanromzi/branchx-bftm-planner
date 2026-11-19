@@ -162,6 +162,56 @@ const stageCountSql = sql<number>`(select count(*) from ${pipelineStage} where $
 const tasksTotalSql = sql<number>`(select count(*) from ${pipelineTask} join ${pipelineStage} on ${pipelineStage.id} = ${pipelineTask.stageId} where ${pipelineStage.pipelineId} = ${pipeline.id})`.mapWith(Number);
 const tasksDoneSql = sql<number>`(select count(*) from ${pipelineTask} join ${pipelineStage} on ${pipelineStage.id} = ${pipelineTask.stageId} where ${pipelineStage.pipelineId} = ${pipeline.id} and ${pipelineTask.doneAt} is not null)`.mapWith(Number);
 
+/**
+ * The Task Overdue rule (EC30): its due date ("YYYY-MM-DD") is before `today` (wibDate, so the day
+ * boundary is WIB), it is unticked, and its Pipeline is open (not Won, Lost or On Hold).
+ * listOverdueTasks applies the same rule in SQL.
+ */
+export function isTaskOverdue(task: { open: boolean; done: boolean; dueOn: string | null }, today: string): boolean {
+  return task.open && !task.done && task.dueOn !== null && task.dueOn < today;
+}
+
+/** One row of listOverdueTasks: an Overdue Task with where it lives (E5-S1 criterion 5). */
+export type OverdueTask = {
+  id: string;
+  name: string;
+  dueOn: string;
+  pipeline: { id: string; stage: { position: number; name: string } };
+  prospect: { id: string; name: string };
+  fundingOfficer: FundingOfficerRef;
+};
+
+/** Every Overdue Task (isTaskOverdue, in SQL) across all Pipelines, oldest due date first. */
+// ponytail: no limit, since Overdue Tasks are a handful per Funding Officer; add one if the dashboard ever pages them.
+export async function listOverdueTasks({ db = getDb(), now = new Date() }: Options = {}): Promise<OverdueTask[]> {
+  const rows = await db
+    .select({
+      id: pipelineTask.id,
+      name: pipelineTask.name,
+      dueOn: pipelineTask.dueOn,
+      pipelineId: pipeline.id,
+      stagePosition: pipelineStage.position,
+      stageName: pipelineStage.name,
+      prospect: { id: prospect.id, name: prospect.name },
+      fundingOfficer: officerColumns,
+    })
+    .from(pipelineTask)
+    .innerJoin(pipelineStage, eq(pipelineStage.id, pipelineTask.stageId))
+    .innerJoin(pipeline, eq(pipeline.id, pipelineStage.pipelineId))
+    .innerJoin(prospect, eq(prospect.id, pipeline.prospectId))
+    .innerJoin(fundingOfficer, eq(fundingOfficer.id, pipeline.fundingOfficerId))
+    .where(and(isNull(pipeline.outcome), isNull(pipelineTask.doneAt), lt(pipelineTask.dueOn, wibDate(now))))
+    .orderBy(asc(pipelineTask.dueOn), asc(pipeline.id), asc(pipelineStage.position), asc(pipelineTask.position));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    dueOn: row.dueOn as string,
+    pipeline: { id: row.pipelineId, stage: { position: row.stagePosition, name: row.stageName } },
+    prospect: row.prospect,
+    fundingOfficer: row.fundingOfficer,
+  }));
+}
+
 /** One Pipeline with its Stages and Tasks. 404 when the id is unknown or not a UUID. */
 export async function getPipeline(id: string, { db = getDb(), now = new Date() }: Options = {}): Promise<PipelineRecord> {
   if (!UUID.test(id)) throw notFound();
@@ -218,7 +268,7 @@ export async function getPipeline(id: string, { db = getDb(), now = new Date() }
         dueOn,
         done: doneAt !== null,
         doneAt,
-        overdue: open && doneAt === null && dueOn !== null && dueOn < today,
+        overdue: isTaskOverdue({ open, done: doneAt !== null, dueOn }, today),
         version,
       }));
     return {

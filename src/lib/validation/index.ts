@@ -534,3 +534,43 @@ export const activityListQuery = z.preprocess(
     })
     .refine((query) => query.to >= query.from, { path: ["to"], error: DATE_RANGE_MESSAGE }),
 );
+
+// Targets and the dashboard (E5-S1). A Target is a count of new accounts for a Funding Officer and a
+// calendar month; Actual is computed from Won Pipelines, never entered.
+
+/** Target range (E5-S1 criterion 1, EC10). */
+export const TARGET_MAX = 100_000;
+export const TARGET_MESSAGE = "Target harus bilangan bulat 0 sampai 100.000.";
+export const MONTH_MESSAGE = "Bulan tidak valid.";
+
+/** A calendar month "YYYY-MM" (years 2000 to 2099). */
+export const calendarMonth = z
+  .string({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : MONTH_MESSAGE) })
+  .regex(/^20\d{2}-(0[1-9]|1[0-2])$/, { error: MONTH_MESSAGE });
+
+/** A Target: an integer from 0 to 100,000. */
+export const targetAccounts = z
+  .number({ error: (issue) => (issue.input === undefined ? REQUIRED_MESSAGE : TARGET_MESSAGE) })
+  .int({ error: TARGET_MESSAGE })
+  .min(0, { error: TARGET_MESSAGE })
+  .max(TARGET_MAX, { error: TARGET_MESSAGE });
+
+/**
+ * Setting one Funding Officer's Target for a month (E5-S1 criterion 1, EC17): an upsert. `version` is
+ * the version of the Target the client loaded, or null when the month had no Target.
+ */
+export const setTargetInput = z.object({
+  fundingOfficerId: requiredId,
+  month: calendarMonth,
+  accounts: targetAccounts,
+  version: version.nullable(),
+});
+
+/** The query string of GET /api/targets and GET /api/dashboard: `month` "YYYY-MM", default the current WIB month. */
+export const monthQuery = z.preprocess(
+  (value) =>
+    Object.fromEntries(
+      Object.entries(value as Record<string, string>).filter(([, item]) => typeof item === "string" && item.trim() !== ""),
+    ),
+  z.object({ month: calendarMonth.optional() }),
+);

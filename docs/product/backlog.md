@@ -332,7 +332,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E5-S1 | As an Admin, I want monthly Targets and a dashboard summary computed from Won Pipelines, so that progress needs no manual totals. | 5 | backend | E3-S3, E4-S1 | Todo |
+| E5-S1 | As an Admin, I want monthly Targets and a dashboard summary computed from Won Pipelines, so that progress needs no manual totals. | 5 | backend | E3-S3, E4-S1 | Verified |
 | E5-S2 | As an Admin, I want a Target screen in Pengaturan, so that I can set each Funding Officer's Target for a month. | 2 | frontend | E5-S1, E1-S2 | Todo |
 | E5-S3 | As an Admin, I want a dashboard, so that I see the month's progress and what is overdue or coming up at a glance. | 5 | frontend | E5-S1, E0-S5 | Todo |
 

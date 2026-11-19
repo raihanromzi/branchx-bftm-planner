@@ -353,3 +353,30 @@ export const activity = pgTable(
     check("activity_purpose_length", sql`char_length(${table.purpose}) between 1 and ${sql.raw(String(FREE_TEXT_MAX))}`),
   ],
 );
+
+/**
+ * A Funding Officer's Target for a calendar month (E5-S1): the number of new accounts, 0 to 100,000
+ * (EC10). One per Funding Officer and month (EC17); setting it again updates the row. `month` is the
+ * first day of the month. Actual is never stored: it is computed from Won Pipelines. Holds no
+ * customer data (ADR 0001): only a count.
+ */
+export const target = pgTable(
+  "target",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fundingOfficerId: uuid("funding_officer_id")
+      .notNull()
+      .references(() => fundingOfficer.id, { onDelete: "restrict" }),
+    month: date("month", { mode: "string" }).notNull(),
+    accounts: integer("accounts").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("target_funding_officer_id_month_idx").on(table.fundingOfficerId, table.month),
+    index("target_month_idx").on(table.month),
+    check("target_accounts_range", sql`${table.accounts} between 0 and 100000`),
+    check("target_month_first_day", sql`extract(day from ${table.month}) = 1`),
+  ],
+);
