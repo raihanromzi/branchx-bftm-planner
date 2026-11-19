@@ -457,9 +457,13 @@ export async function setPipelineOutcome(
       case "on_hold":
         set = { outcome: "on_hold" };
         break;
-      case "open":
+      case "open": {
+        // Resuming would leave an open Pipeline on an archived Prospect (EC19 allows archiving On Hold).
+        const owner = await lockProspect(tx, current.prospectId);
+        if (owner?.archivedAt != null) throw invalidState(PROSPECT_ARCHIVED_MESSAGE, "prospect_archived");
         set = { outcome: null };
         break;
+      }
     }
     await updateWithVersion(pipeline, id, input.version, set, { db: tx });
     return getPipeline(id, { db: tx, now });

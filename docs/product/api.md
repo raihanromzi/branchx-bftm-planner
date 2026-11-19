@@ -45,7 +45,7 @@ Every error has one shape. `fields` is present only on validation errors, with o
 | `422` | `prospect_archived` | An edit to an archived Prospect. See [Prospects](#prospects). |
 | `409` | `template_name_taken`, `template_in_use` | Pipeline Templates: another active template has the name, or a delete of a template a Pipeline uses. See [Pipeline Templates](#pipeline-templates). |
 | `422` | `template_archived`, `last_template`, `template_archived_cannot_start`, `template_not_found` | Pipeline Templates: an edit to an archived template, archiving or deleting the only active one, or starting a Pipeline from an archived or unknown one. |
-| `422` | `prospect_has_open_pipeline` | Archiving a Prospect that has an open or On Hold Pipeline ("Tutup atau tunda Pipeline dulu."). See [Prospects](#prospects). |
+| `422` | `prospect_has_open_pipeline` | Archiving a Prospect that has an open Pipeline ("Tutup atau tunda Pipeline dulu."). On Hold does not block it. See [Prospects](#prospects). |
 | `409` | `pipeline_already_open` | Pipelines: starting or reopening one while the Prospect has another open or On Hold Pipeline. See [Pipelines](#pipelines). |
 | `422` | `pipeline_closed`, `invalid_transition`, `prospect_not_found` | Pipelines: a change the Pipeline's Outcome does not allow, an Outcome transition that is not allowed, or starting one for an unknown Prospect. |
 | `500` | `internal` | Unexpected. No details are returned; they are logged on the server. |
@@ -413,7 +413,7 @@ Archive sets `archivedAt`: the Prospect leaves the default list but can still be
 | `403` | `forbidden_origin` | Cross-origin request. |
 | `404` | `not_found` | Unknown id. |
 | `409` | `version_conflict` | The state has to change, and the record changed since the client loaded it. |
-| `422` | `{ "error": { "code": "prospect_has_open_pipeline", "message": "Tutup atau tunda Pipeline dulu." } }` | Archive only: the Prospect has an open **or On Hold** Pipeline (E3-S3 #8, EC19). Close it (Won or Lost) first. Pipelines that are all Won or Lost do not block archiving. |
+| `422` | `{ "error": { "code": "prospect_has_open_pipeline", "message": "Tutup atau tunda Pipeline dulu." } }` | Archive only: the Prospect has an **open** Pipeline (E3-S3 #8, EC19). Close it (Won or Lost) or put it On Hold first. On Hold, Won and Lost Pipelines do not block archiving (decided by the user on 2026-11-19). An On Hold Pipeline of an archived Prospect cannot be resumed (`422 prospect_archived`) until the Prospect is restored. |
 
 All rules for archiving run in the one archive transaction, with the Prospect's row locked (the lock starting and reopening a Pipeline also take, so no Pipeline can open meanwhile). E4-S1 adds `GET /api/prospects/:id/archive-preview` (future Activities count) and cancels those Activities on archive.
 
@@ -601,12 +601,12 @@ Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations 
 
 ### States and the Outcome
 
-| State | `outcome` | UI | Can move Stage | Tasks editable | Counts as "open" for EC16 and EC19 |
-|-------|-----------|----|----------------|----------------|------------------------------------|
-| Open | `null` | (Stage badge) | yes | yes | yes |
-| On Hold | `"on_hold"` | Ditunda | no | no (read-only) | yes |
-| Won | `"won"` | Berhasil | no | no | no |
-| Lost | `"lost"` | Gagal | no | no | no |
+| State | `outcome` | UI | Can move Stage | Tasks editable | Blocks a new Pipeline (EC16) | Blocks archiving the Prospect (EC19) |
+|-------|-----------|----|----------------|----------------|------------------------------|--------------------------------------|
+| Open | `null` | (Stage badge) | yes | yes | yes | yes |
+| On Hold | `"on_hold"` | Ditunda | no | no (read-only) | yes | no (cannot be resumed while the Prospect is archived) |
+| Won | `"won"` | Berhasil | no | no | no | no |
+| Lost | `"lost"` | Gagal | no | no | no | no |
 
 `PIPELINE_OUTCOMES` and `PIPELINE_OUTCOME_LABELS` are in `@/lib/validation`.
 
@@ -784,7 +784,7 @@ Sets the Outcome along the transition table above (criterion 5). One of:
 
 | Field | Rules |
 |-------|-------|
-| `outcome` | Required: `won`, `lost`, `on_hold`, or `open` (resume an On Hold Pipeline). Missing: "Wajib diisi."; anything else: "Isian tidak valid." |
+| `outcome` | Required: `won`, `lost`, `on_hold`, or `open` (resume an On Hold Pipeline; refused with `422 prospect_archived` while its Prospect is archived). Missing: "Wajib diisi."; anything else: "Isian tidak valid." |
 | `accountsOpened` | Won only, required: an integer from 1 to 100,000. Otherwise (missing, 0, 100001, 1.5, a string): "Rekening dibuka harus bilangan bulat 1 sampai 100.000." (EC10) |
 | `wonOn` | Won only, required: `"YYYY-MM-DD"`, a real date ("Tanggal tidak valid." otherwise), **not after today in WIB**: "Tanggal berhasil tidak boleh di masa depan." (EC32). Today and earlier are accepted. |
 | `lostReason` | Lost only, required: free text, at most 500 characters, with the customer-number guard (EC42). |

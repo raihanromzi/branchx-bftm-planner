@@ -313,7 +313,7 @@ export async function updateProspect(
  *
  * This is the single entry point for archiving, and it runs in one transaction with the row locked,
  * so the rules later stories add belong here, before the update: the open-Pipeline guard (E3-S3,
- * EC19: 422 prospect_has_open_pipeline, "Tutup atau tunda Pipeline dulu.") and cancelling the
+ * EC19: 422 prospect_has_open_pipeline, "Tutup atau tunda Pipeline dulu.", open only, not On Hold) and cancelling the
  * Prospect's future Activities (E4-S1).
  */
 export async function archiveProspect(
@@ -324,12 +324,13 @@ export async function archiveProspect(
   return db.transaction(async (tx) => {
     const current = await lockProspect(tx, id);
     if (current.archivedAt === null) {
-      // EC19: a Prospect with an open or On Hold Pipeline cannot be archived. Starting and reopening a
-      // Pipeline take the same row lock, so none can appear between this check and the update.
+      // EC19: a Prospect with an open Pipeline cannot be archived. On Hold does not block it (decided by
+      // the user on 2026-11-19: "tunda" is a way out), and an On Hold Pipeline cannot be resumed while its
+      // Prospect is archived. Starting, reopening and resuming take the same row lock.
       const [open] = await tx
         .select({ id: pipeline.id })
         .from(pipeline)
-        .where(and(eq(pipeline.prospectId, id), openOrOnHold))
+        .where(and(eq(pipeline.prospectId, id), isNull(pipeline.outcome)))
         .limit(1);
       if (open) throw invalidState(PROSPECT_HAS_OPEN_PIPELINE_MESSAGE, "prospect_has_open_pipeline");
       await updateWithVersion(prospect, id, input.version, { archivedAt: sql`now()` }, { db: tx });

@@ -212,7 +212,7 @@ Release:
 5. Outcome transitions: Open → Won requires Accounts Opened (an integer from 1 to 100,000) and a Won date that is not in the future in WIB; Open → Lost requires a reason; Open → On Hold; On Hold → Open at the same Stage; On Hold → Lost. Every other transition is rejected. (EC10, EC24, EC32)
 6. Reopening a Won or Lost Pipeline clears its Outcome, Accounts Opened and Won date. It is rejected when the Prospect has another open or On Hold Pipeline. (EC25)
 7. A Pipeline's Funding Officer can be changed separately from its Prospect's. (EC26)
-8. Archiving a Prospect with an open or On Hold Pipeline is rejected with "Tutup atau tunda Pipeline dulu." (EC19)
+8. Archiving a Prospect with an open Pipeline is rejected with "Tutup atau tunda Pipeline dulu." An On Hold Pipeline does not block archiving, and it cannot be resumed while its Prospect is archived. (EC19; changed on 2026-11-19 by the user's decision, see Open questions 3)
 9. The Prospect list (E2-S1) fills each row's `openPipeline` with the Stage name, position and Stage count of its open or On Hold Pipeline, and filters by Stage (template and Stage position) on the server. Moved here from E2-S1 #4 on 2026-11-19, because it needs Pipelines.
 
 ### E3-S4 acceptance criteria
@@ -423,12 +423,9 @@ Release:
 
 ## Open questions
 
-Open:
-
-3. **Archiving a Prospect whose Pipeline is On Hold (E3-S3 #8 vs the brief's EC19).** The brief blocks archiving only while a Pipeline is open, and its message "Tutup atau tunda Pipeline dulu." offers On Hold as a way out. E3-S3 #8 also blocks On Hold, which is what is built. Asked the user on 2026-11-19.
-
 Resolved:
 
+3. Archiving a Prospect whose Pipeline is On Hold: allowed. The user chose on 2026-11-19 to follow the brief's EC19 over E3-S3 #8, so only an open Pipeline blocks archiving, and an On Hold Pipeline cannot be resumed while its Prospect is archived. E3-S3 #8 is updated.
 1. Stage filter on the Prospect list: added to E2-S1 criterion 4. The user approved it with the designs on 2026-11-18.
 2. Grouping open Pipelines by Stage across templates: grouped by template, then by Stage position and name, in E5-S1 criterion 6. The user approved it with the designs on 2026-11-18.
 

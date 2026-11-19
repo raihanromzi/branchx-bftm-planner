@@ -811,19 +811,28 @@ describe("E3-S3 Pipelines", () => {
     });
   });
 
-  describe("criterion 8: archiving a Prospect with an open or On Hold Pipeline is refused (EC19)", () => {
-    it("refuses with 422 prospect_has_open_pipeline and the exact message, open or On Hold", async () => {
+  describe("criterion 8: archiving a Prospect with an open Pipeline is refused; On Hold is allowed (EC19)", () => {
+    it("refuses with 422 prospect_has_open_pipeline and the exact message while the Pipeline is open", async () => {
       const prospectId = await insertProspect("SDN 3 Cibinong");
-      const started = await startOk(prospectId);
+      await startOk(prospectId);
       const open = await archiveProspect(prospectId);
       expect(open.status).toBe(422);
       expect(await errorOf(open)).toEqual({ code: "prospect_has_open_pipeline", message: CLOSE_FIRST });
-      await outcomeOk(started.id, { outcome: "on_hold", version: 1 });
-      const onHold = await archiveProspect(prospectId);
-      expect(onHold.status).toBe(422);
-      expect((await errorOf(onHold)).message).toBe(CLOSE_FIRST);
       const [row] = await sql`select archived_at from prospect where id = ${prospectId}`;
       expect(row.archived_at).toBeNull();
+    });
+
+    it("archives a Prospect whose Pipeline is On Hold, and the Pipeline cannot be resumed while archived", async () => {
+      // Decided by the user on 2026-11-19: the brief's EC19 wins, so putting the Pipeline On Hold ("tunda") is a way out.
+      const prospectId = await insertProspect("Pasar Kramat Jati Blok B");
+      const started = await startOk(prospectId);
+      await outcomeOk(started.id, { outcome: "on_hold", version: 1 });
+      const archived = await archiveProspect(prospectId);
+      expect(archived.status).toBe(200);
+      const resumed = await outcome(started.id, { outcome: "open", version: 2 });
+      expect(resumed.status).toBe(422);
+      expect((await errorOf(resumed)).code).toBe("prospect_archived");
+      expect((await getOk(started.id)).outcome).toBe("on_hold");
     });
 
     it("archives a Prospect whose Pipelines are all Won or Lost, and restores it", async () => {
