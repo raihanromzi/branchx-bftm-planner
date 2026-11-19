@@ -24,6 +24,15 @@ Run `vercel env pull .env.local` to fetch the Development variables. `.env.local
 
 ## Releases
 
+### 2026-11-19: E3-S2 and BUG-3 promoted
+
+- The preview of `feature/planner-v1` at `37417f5` (CI run 44451208848 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-b2hhado1x`. There was no new migration.
+- Checked:
+  - `/api/health` gives ok with the database ok;
+  - signed-out `/pengaturan/template-pipeline` redirects to `/masuk`;
+  - signed-out `/api/pipeline-templates` gives 401.
+- Rollback: `vercel rollback` to `branchx-bftm-planner-nujm727zw`.
+
 ### 2026-11-19: work-in-progress build on production (user request, before the release gate)
 
 - At the user's request ("make sure the data is on the production"), the preview of `feature/planner-v1` at commit `e2c948b` was promoted with `vercel promote`. That created production deployment `branchx-bftm-planner-nujm727zw`. `main` was not merged.

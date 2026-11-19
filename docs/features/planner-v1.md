@@ -4,7 +4,7 @@ title: BFTM Planner v1
 phase: build
 branch: feature/planner-v1
 started: 2026-11-18
-updated: 2026-11-18
+updated: 2026-11-19
 ---
 
 # BFTM Planner v1
@@ -59,6 +59,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-19 user requests:
   - A dummy Admin `admin@contoh.id` in the local database, then in the shared Neon database. Migrations 0000–0005 were applied to Neon early, and the user chose to keep the weak test password.
   - "Make sure the data is on the production": the e2c948b preview was promoted to production without merging `main`. From now on, promote each Verified story's preview to production. Recorded in docs/ops/deploy.md.
+- 2026-11-19 build: E3-S2 `3f15d2b` Verified; BUG-3, found by CI, fixed in `37417f5`, and CI is green. Promoted to production as `b2hhado1x`.
 
 ## Blocked on
 
