@@ -21,7 +21,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - Epic and stories: docs/product/backlog.md, E0 to E6 (approved)
 - ADRs: docs/adr/0001 to 0005; docs/architecture.md
 - Designs: docs/design/ (14 screens); DESIGN.md confirmed
-- QA reports:
+- QA reports: docs/product/qa/ (one per story)
 - Pull request:
 - Preview URL:
 - Production release:
@@ -38,6 +38,27 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-18 architecture: ADR 0001 (no customer data) was written from the hard rule. The user picked the recommended option for each decision: ADR 0002, sign-in with scrypt and database sessions, no auth library; ADR 0003, JSON Route Handlers over a service layer; ADR 0004, private Vercel Blob uploaded through the server; ADR 0005, Postgres in Docker for local development and tests. docs/architecture.md written.
 - 2026-11-18 design: the user chose the deep teal accent (#0E6E73), Plus Jakarta Sans, a 6 px radius and the 14/16/20/28 type scale. DESIGN.md is confirmed, with colour tokens, a Stage colour ramp with dot marks, map markers numbered by Stage position, and UI labels. 14 screen designs written. Two open questions added to the backlog (a Stage filter on the Prospect list, and grouping Pipelines by Stage across templates). The backlog copy for E3-S4 #3 now uses "Tugas". Waiting for design approval.
 - 2026-11-18 design gate: the user approved DESIGN.md, the 14 screen designs and both proposals, now in E2-S1 #4 and E5-S1 #6.
+- 2026-11-19 build: the E0 Foundation is Verified, with CI green on each push.
+  - E0-S1 `6577b0b`
+  - E0-S2 `fe011d7`: Docker Postgres for local and tests; `.env.local` now points at it, with the Neon values backed up in `.env.neon.local`.
+  - E0-S6 `24a8f9d`: review fix, the customer-number guard no longer rejects dates in notes.
+  - E0-S3 `9bedd8c`: security review clean; sign-out without a session answers 401, per ADR 0002.
+  - E0-S4 `74aa7f2`
+  - E0-S5 `060e08a`: an open-redirect guard on `next`.
+  - Follow-up recorded: the focus ring on shared Input and Button, to fix in E1-S2.
+
+- 2026-11-19 build: more stories Verified with CI green:
+  - E1-S1 `30fb8eb`, E1-S2 `d179c9d`;
+  - E2-S1 `c0c3a9c`, after a review fix that made Category optional;
+  - E2-S2 `fb0e004`;
+  - E2-S3 `cd61e27`, with BUG-2 (focus lost after a server error, found by CI) fixed in `4699377`;
+  - E3-S1 `5017255`;
+  - E3-S3 `f842ae8`.
+  The Stage filter moved from E2-S1 to E3-S3 #9 (sequencing only).
+- 2026-11-19 user decision: archiving a Prospect is blocked only by an open Pipeline, not On Hold (the brief's EC19 over E3-S3 #8); fixed in `e2c948b`.
+- 2026-11-19 user requests:
+  - A dummy Admin `admin@contoh.id` in the local database, then in the shared Neon database. Migrations 0000–0005 were applied to Neon early, and the user chose to keep the weak test password.
+  - "Make sure the data is on the production": the e2c948b preview was promoted to production without merging `main`. From now on, promote each Verified story's preview to production. Recorded in docs/ops/deploy.md.
 
 ## Blocked on
 

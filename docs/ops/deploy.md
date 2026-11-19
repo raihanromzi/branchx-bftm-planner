@@ -24,6 +24,20 @@ Run `vercel env pull .env.local` to fetch the Development variables. `.env.local
 
 ## Releases
 
+### 2026-11-19: work-in-progress build on production (user request, before the release gate)
+
+- At the user's request ("make sure the data is on the production"), the preview of `feature/planner-v1` at commit `e2c948b` was promoted with `vercel promote`. That created production deployment `branchx-bftm-planner-nujm727zw`. `main` was not merged.
+- Contents: E0 Foundation, E1-S1 and E1-S2, E2-S1 to E2-S3, E3-S1 and E3-S3, plus BUG-1 and BUG-2. Screens not built yet show a "sedang disiapkan" placeholder.
+- Database: the shared Neon database (migrations 0000–0005, applied 2026-11-19; see First-time setup).
+- Checked:
+  - `/api/health` gives ok with the database ok;
+  - sign-in as the test Admin gives 200;
+  - signed-out `/prospect` redirects to `/masuk?next=%2Fprospect`;
+  - signed in, `/`, `/prospect`, `/pengaturan/funding-officer` and `/prospect/baru` give 200;
+  - `/api/pipeline-templates` returns "Umum".
+- Until the release: after each Verified story, promote that story's green preview the same way, so production follows the branch. The final release still merges the pull request into `main` after the user confirms at the release gate.
+- Rollback: `vercel rollback` to the previous production deployment (`branchx-bftm-planner-6q2gze7uz`, the setup placeholder).
+
 ### 2026-11-18: setup check (unplanned production deploy)
 
 - Deployment `dpl_CWX17d5m8Pun6KpmfnNA1PUwnY7M`, made with `vercel deploy` from the working tree, meant as a preview. Vercel assigns a project's first deployment to production, so it went live at https://branchx-bftm-planner.vercel.app without a release gate.
