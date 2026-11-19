@@ -11,6 +11,7 @@ import { ApiError, invalidState, notFound, updateWithVersion } from "@/server/ht
 import {
   type ProspectCategory,
   type createProspectInput,
+  type mapProspectQuery,
   type prospectListQuery,
   type prospectStatusInput,
   type updateProspectInput,
@@ -21,6 +22,7 @@ export {
   PROSPECT_CATEGORIES,
   PROSPECT_NAME_MAX,
   createProspectInput,
+  mapProspectQuery,
   prospectListQuery,
   prospectNameKey,
   prospectStatusInput,
@@ -125,6 +127,36 @@ const openPipelineSql = sql<OpenPipelineStage | null>`(
   where ${pipeline.prospectId} = ${prospect.id} and (${pipeline.outcome} is null or ${pipeline.outcome} = 'on_hold')
 )`;
 
+/**
+ * The Funding Officer and Stage filters, shared by the list and the map (E6-S1). The Stage filter
+ * (E3-S3 criterion 9): the open or On Hold Pipeline is from this template and at this Stage.
+ */
+function officerAndStageFilters(
+  db: Db | Tx,
+  query: { fundingOfficerId?: string; templateId?: string; stagePosition?: number },
+): SQL[] {
+  const conditions: SQL[] = [];
+  if (query.fundingOfficerId) conditions.push(eq(prospect.fundingOfficerId, query.fundingOfficerId));
+  if (query.templateId !== undefined && query.stagePosition !== undefined) {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(pipeline)
+          .where(
+            and(
+              eq(pipeline.prospectId, prospect.id),
+              openOrOnHold,
+              eq(pipeline.templateId, query.templateId),
+              eq(pipeline.currentStagePosition, query.stagePosition),
+            ),
+          ),
+      ),
+    );
+  }
+  return conditions;
+}
+
 /** Escapes LIKE's wildcards so the search matches `%`, `_` and `\` literally. */
 function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
@@ -144,26 +176,8 @@ export async function listProspects(
   const q = query.q ? prospectNameKey(query.q) : "";
   if (q) conditions.push(sql`${prospect.nameKey} like ${likePattern(q)} escape '\\'`);
   if (query.category) conditions.push(eq(prospect.category, query.category));
-  if (query.fundingOfficerId) conditions.push(eq(prospect.fundingOfficerId, query.fundingOfficerId));
   if (query.noLocation) conditions.push(isNull(prospect.lat));
-  if (query.templateId !== undefined && query.stagePosition !== undefined) {
-    // The Stage filter (E3-S3 criterion 9): the open or On Hold Pipeline is from this template and at this Stage.
-    conditions.push(
-      exists(
-        db
-          .select({ one: sql`1` })
-          .from(pipeline)
-          .where(
-            and(
-              eq(pipeline.prospectId, prospect.id),
-              openOrOnHold,
-              eq(pipeline.templateId, query.templateId),
-              eq(pipeline.currentStagePosition, query.stagePosition),
-            ),
-          ),
-      ),
-    );
-  }
+  conditions.push(...officerAndStageFilters(db, query));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [rows, [{ total }]] = await Promise.all([
@@ -376,4 +390,106 @@ export async function restoreProspect(
     }
     return getProspect(id, { db: tx });
   });
+}
+
+/** A Stage on the map: shared by every marker at it (E6-S1). `count` is its Pipeline's Stage count. */
+export type MapStage = { name: string; position: number; count: number };
+
+/**
+ * One marker (E6-S1 criterion 1), compact since up to 2,000 are sent at once (EC6, 500 KB budget).
+ * `fundingOfficer` and `stage` are indexes into the response's `fundingOfficers` and `stages`.
+ * `stage` and `outcome` are of the latest Pipeline: the open or On Hold one when there is one (a
+ * reopened older Pipeline wins over a newer closed one), otherwise the most recently started; both
+ * are null when the Prospect has no Pipeline.
+ */
+export type MapProspect = {
+  id: string;
+  name: string;
+  category: ProspectCategory | null;
+  lat: number;
+  lng: number;
+  fundingOfficer: number;
+  stage: number | null;
+  outcome: "won" | "lost" | "on_hold" | null;
+};
+
+export type MapProspects = { items: MapProspect[]; fundingOfficers: FundingOfficerRef[]; stages: MapStage[] };
+
+type LatestPipeline = MapStage & { outcome: MapProspect["outcome"] };
+
+const latestPipelineSql = sql<LatestPipeline | null>`(
+  select json_build_object(
+    'name', ${pipelineStage.name},
+    'position', ${pipeline.currentStagePosition},
+    'count', (select count(*)::int from ${pipelineStage} as all_stages where all_stages.pipeline_id = ${pipeline.id}),
+    'outcome', ${pipeline.outcome}
+  )
+  from ${pipeline}
+  join ${pipelineStage} on ${pipelineStage.pipelineId} = ${pipeline.id} and ${pipelineStage.position} = ${pipeline.currentStagePosition}
+  where ${pipeline.prospectId} = ${prospect.id}
+  order by (${pipeline.outcome} is null or ${pipeline.outcome} = 'on_hold') desc, ${pipeline.startedAt} desc, ${pipeline.id} desc
+  limit 1
+)`;
+
+/** Rounds a coordinate to 6 decimals (about 0.1 m), enough for a marker and shorter on the wire. */
+const coordinate = (value: number | null) => Math.round((value ?? 0) * 1e6) / 1e6;
+
+/** The index of `value` in `list`, adding it under `key` the first time. */
+function indexOf<T>(index: Map<string, number>, list: T[], key: string, value: T): number {
+  let at = index.get(key);
+  if (at === undefined) {
+    at = list.push(value) - 1;
+    index.set(key, at);
+  }
+  return at;
+}
+
+/**
+ * Every non-archived Prospect with a location, sorted by name, for the map (E6-S1). Prospects
+ * without a location are left out (EC34). Same Funding Officer and Stage filters as the list.
+ * ponytail: no paging or bounding box; fine for the 2,000 Prospects of EC6. Add a bbox filter past ~5,000.
+ */
+export async function listMapProspects(
+  query: z.output<typeof mapProspectQuery>,
+  { db = getDb() }: Options = {},
+): Promise<MapProspects> {
+  const rows = await db
+    .select({
+      id: prospect.id,
+      name: prospect.name,
+      category: prospect.category,
+      lat: prospect.lat,
+      lng: prospect.lng,
+      fundingOfficer: officerColumns,
+      pipeline: latestPipelineSql,
+    })
+    .from(prospect)
+    .innerJoin(fundingOfficer, eq(fundingOfficer.id, prospect.fundingOfficerId))
+    .where(and(isNull(prospect.archivedAt), isNotNull(prospect.lat), ...officerAndStageFilters(db, query)))
+    .orderBy(asc(prospect.nameKey), asc(prospect.id));
+
+  const fundingOfficers: FundingOfficerRef[] = [];
+  const stages: MapStage[] = [];
+  const officerIndex = new Map<string, number>();
+  const stageIndex = new Map<string, number>();
+  const items = rows.map((row): MapProspect => {
+    const latest = row.pipeline;
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      lat: coordinate(row.lat),
+      lng: coordinate(row.lng),
+      fundingOfficer: indexOf(officerIndex, fundingOfficers, row.fundingOfficer.id, row.fundingOfficer),
+      stage: latest
+        ? indexOf(stageIndex, stages, JSON.stringify([latest.name, latest.position, latest.count]), {
+            name: latest.name,
+            position: latest.position,
+            count: latest.count,
+          })
+        : null,
+      outcome: latest?.outcome ?? null,
+    };
+  });
+  return { items, fundingOfficers, stages };
 }

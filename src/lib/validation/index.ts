@@ -258,38 +258,55 @@ export const prospectStatusInput = z.object({ version });
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const flag = z.enum(["0", "1"]).default("0").transform((value) => value === "1");
 
+/** Drops blank query parameters, so they count as missing. */
+const blankAsMissing = (value: unknown) =>
+  Object.fromEntries(
+    Object.entries(value as Record<string, string>).filter(([, item]) => typeof item === "string" && item.trim() !== ""),
+  );
+
+/**
+ * The Funding Officer and Stage filters, shared by the Prospect list and the map (E6-S1). The Stage
+ * filter (E3-S3 criterion 9) is the open or On Hold Pipeline's template and current Stage position;
+ * the two go together.
+ */
+const prospectFilterFields = {
+  fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
+  templateId: z.string().regex(UUID_PATTERN).optional(),
+  stagePosition: z.coerce.number().int().min(1).max(30).optional(), // 30 = STAGES_MAX (declared below)
+};
+
+function requireStagePair(query: { templateId?: string; stagePosition?: number }, ctx: z.RefinementCtx) {
+  if (query.templateId !== undefined && query.stagePosition === undefined) {
+    ctx.addIssue({ code: "custom", path: ["stagePosition"], message: REQUIRED_MESSAGE });
+  }
+  if (query.stagePosition !== undefined && query.templateId === undefined) {
+    ctx.addIssue({ code: "custom", path: ["templateId"], message: REQUIRED_MESSAGE });
+  }
+}
+
 /**
  * The query string of GET /api/prospects (E2-S1 criterion 4). Blank values count as missing.
  * archived=1 includes archived Prospects alongside the others; the default leaves them out.
  */
 export const prospectListQuery = z.preprocess(
-  (value) =>
-    Object.fromEntries(
-      Object.entries(value as Record<string, string>).filter(([, item]) => typeof item === "string" && item.trim() !== ""),
-    ),
-  z.object({
-    q: z
-      .string()
-      .max(PROSPECT_NAME_MAX, { error: maxLengthMessage(PROSPECT_NAME_MAX) })
-      .optional(),
-    category: prospectCategory.optional(),
-    fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
-    archived: flag,
-    noLocation: flag,
-    page: z.coerce.number().int().min(1).max(100_000).default(1),
-    // The Stage filter (E3-S3 criterion 9): the open or On Hold Pipeline's template and current Stage
-    // position. The two go together.
-    templateId: z.string().regex(UUID_PATTERN).optional(),
-    stagePosition: z.coerce.number().int().min(1).max(30).optional(), // 30 = STAGES_MAX (declared below)
-  }).superRefine((query, ctx) => {
-    if (query.templateId !== undefined && query.stagePosition === undefined) {
-      ctx.addIssue({ code: "custom", path: ["stagePosition"], message: REQUIRED_MESSAGE });
-    }
-    if (query.stagePosition !== undefined && query.templateId === undefined) {
-      ctx.addIssue({ code: "custom", path: ["templateId"], message: REQUIRED_MESSAGE });
-    }
-  }),
+  blankAsMissing,
+  z
+    .object({
+      q: z
+        .string()
+        .max(PROSPECT_NAME_MAX, { error: maxLengthMessage(PROSPECT_NAME_MAX) })
+        .optional(),
+      category: prospectCategory.optional(),
+      archived: flag,
+      noLocation: flag,
+      page: z.coerce.number().int().min(1).max(100_000).default(1),
+      ...prospectFilterFields,
+    })
+    .superRefine(requireStagePair),
 );
+
+/** The query string of GET /api/map/prospects (E6-S1 criterion 2): the Funding Officer and Stage filters only. */
+export const mapProspectQuery = z.preprocess(blankAsMissing, z.object(prospectFilterFields).superRefine(requireStagePair));
 
 // Pipeline Templates (E3-S1). A template is a name and ordered Stages, each with ordered Task names.
 

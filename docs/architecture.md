@@ -18,12 +18,12 @@ src/server/                 server-only; never imported by client components
   validation/               shared rules: phone (+62), free-text guard (ADR 0001), id-ID numbers
   auth/                     sessions, scrypt, lockout, requireAdmin()          (ADR 0002)
   funding-officers/         Funding Officers, deactivation preview
-  prospects/                Prospects, search, duplicate check, archive
+  prospects/                Prospects, search, duplicate check, archive, map data
   pipeline-templates/       Templates, Stages, Tasks, default seed
   pipelines/                Pipelines, Stage moves, Tasks, Outcomes
   activities/               Activities, Check-ins
   storage/                  photo storage interface: Vercel Blob, in-memory  (ADR 0004)
-  dashboard/                Targets, monthly summary, overdue, map data
+  dashboard/                Targets, monthly summary, overdue
 src/db/schema.ts            Drizzle schema (all tables)
 proxy.ts                    optimistic cookie check and redirect (ADR 0002)
 ```
@@ -98,7 +98,7 @@ Resources and operations. The bodies are in `api.md`, and the conventions are in
 | `/api/check-ins/:id/photo` | `GET` (authenticated stream) |
 | `/api/targets` | `GET ?month=`, `PUT` (upsert one Funding Officer's month) |
 | `/api/dashboard` | `GET ?month=` (Target vs Actual, previous month, overdue, upcoming, Pipelines by Stage) |
-| `/api/map/prospects` | `GET ?fundingOfficerId=&stage=` (compact rows) |
+| `/api/map/prospects` | `GET ?fundingOfficerId=&templateId=&stagePosition=` (compact rows; served by `server/prospects`, which owns the list filters) |
 
 ## Deployment shape
 

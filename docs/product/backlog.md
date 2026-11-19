@@ -383,7 +383,7 @@ Release:
 
 | ID | Story | Points | Owner | Depends on | Status |
 |----|-------|--------|-------|------------|--------|
-| E6-S1 | As an Admin, I want the map data for my Prospects with their Stage, so that the map can show them. | 2 | backend | E3-S3 | Todo |
+| E6-S1 | As an Admin, I want the map data for my Prospects with their Stage, so that the map can show them. | 2 | backend | E3-S3 | Verified |
 | E6-S2 | As an Admin, I want a map of Prospects with filters and a list toggle, so that I can plan visits by area. | 5 | frontend | E6-S1, E0-S4 | Todo |
 
 ### E6-S1 acceptance criteria

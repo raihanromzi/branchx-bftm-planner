@@ -1150,6 +1150,48 @@ Implemented in E5-S1. Computed on every read; nothing is stored. `month` is opti
 | `upcoming.next7Days` | Activities on the next 7 WIB days after today (tomorrow to today + 7), of any status, in time order. |
 | `pipelinesByStage` | Open Pipelines now (no Outcome; On Hold not counted), by their current Stage. Grouped by template (by name), then by Stage position and name. Only Stages with at least one Pipeline. |
 
+## Map
+
+### `GET /api/map/prospects`
+
+Implemented in E6-S1, for the Peta screen (E6-S2). Every **non-archived** Prospect **with a location**, sorted by name, all at once (no paging). Prospects without a location are left out (EC34); the list's `noLocation=1` counts them. Needs an Admin session (`401`). `Cache-Control: no-store`.
+
+Query parameters (blank counts as missing), with the same rules as `GET /api/prospects`:
+
+| Parameter | Meaning |
+|-----------|---------|
+| `fundingOfficerId` | A Funding Officer's id (a UUID): only that Funding Officer's Prospects. |
+| `templateId` + `stagePosition` | The Stage filter: only Prospects whose **open or On Hold** Pipeline was started from template `templateId` and is now at Stage `stagePosition` (1 to 30). The two go together. |
+
+```json
+{
+  "items": [
+    { "id": "0b7e…", "name": "SDN 3 Cibinong", "category": "sekolah", "lat": -6.4817, "lng": 106.854, "fundingOfficer": 0, "stage": 0, "outcome": null },
+    { "id": "9c1d…", "name": "Pasar Anyar", "category": null, "lat": -6.59, "lng": 106.79, "fundingOfficer": 1, "stage": null, "outcome": null }
+  ],
+  "fundingOfficers": [ { "id": "6f1c…", "name": "Rina Kartika", "active": true }, { "id": "a2b4…", "name": "Agus Setiawan", "active": true } ],
+  "stages": [ { "name": "Presentasi", "position": 3, "count": 5 } ]
+}
+```
+
+To keep 2,000 markers small, each Funding Officer and Stage is sent once and rows point at them by index:
+
+| Field | Meaning |
+|-------|---------|
+| `lat`, `lng` | Rounded to 6 decimals (about 0.1 m). |
+| `fundingOfficer` | Index into `fundingOfficers` (the Prospect's Funding Officer). `fundingOfficers` holds only those used by `items`, in order of first use. |
+| `stage` | Index into `stages`, or `null` when the Prospect has no Pipeline. The Stage is the current Stage of the Prospect's **latest** Pipeline: its open or On Hold Pipeline when it has one (so a reopened older Pipeline wins over a newer closed one), otherwise its most recently started Pipeline. A `stages` entry is `name`, 1-based `position` (the marker number) and `count` (that Pipeline's Stage count, for the colour bucket `ceil(position / count × 5)`); markers with the same three share one entry. |
+| `outcome` | That latest Pipeline's Outcome: `null` (open, or no Pipeline when `stage` is `null`), `"on_hold"`, `"won"` (marker ✓) or `"lost"` (marker ✕). |
+
+No contact, address, Potential Accounts or note is sent (ADR 0001); the detail page has them.
+
+| Status | Body | When |
+|--------|------|------|
+| `200` | As above; `{ "items": [], "fundingOfficers": [], "stages": [] }` when nothing matches or no Prospect has a location (EC5). | Always. |
+| `400` | `validation` with `fields.<parameter>` | `fundingOfficerId` or `templateId` not a UUID, `stagePosition` outside 1 to 30, or one of `templateId` / `stagePosition` without the other. |
+
+Measured with 2,000 located Prospects, each with a Pipeline, on local Postgres 16: about 354 KB of JSON (budget 500 KB, EC6), and a median of 5 to 16 ms per query shape (budget 500 ms).
+
 ## Health
 
 ### `GET /api/health`
