@@ -1,14 +1,20 @@
-import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { Suspense } from "react";
+import { requireAdminPage } from "@/server/auth/page";
+import { TargetScreen } from "@/components/targets/target-screen";
 
-// Placeholder inside the app shell (E0-S4). Story E5-S2 builds this screen.
-export const metadata: Metadata = { title: "Target" };
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Target" };
 
-export default function TargetSettingsPage() {
+export default async function TargetPage() {
+  await requireAdminPage("/pengaturan/target");
+
   return (
-    <PlaceholderPage
-      title="Target"
-      description="Target bulanan akan tampil di sini. Layar ini sedang disiapkan."
-    />
+    <Suspense fallback={<TargetSkeleton />}>
+      <TargetScreen />
+    </Suspense>
   );
+}
+
+function TargetSkeleton() {
+  return <div className="p-4">Memuat target...</div>;
 }

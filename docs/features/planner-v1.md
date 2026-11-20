@@ -73,6 +73,9 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 
 - 2026-11-20 build: CI run 44714110427 exposed BUG-6, a shell pathname hydration mismatch that blocked mobile and tablet navigation. Two-phase pathname rendering and a hydration-console regression added; full local checks and replacement CI run 44717649444 passed. E2-S4 and BUG-6 production deployment: `branchx-bftm-planner-btpjo4kzm`.
 
+- 2026-11-20 process: user chose MVP batch mode to reduce delivery time and token use. Remaining stories build first in dependency order, then one batch review, one final tester pass, one commit/push/CI run. Security review runs only for authentication, authorization, uploads, secrets or trust-boundary changes.
+- 2026-11-20 build: user authorized completing all eight remaining stories as one MVP batch, with every page usable for user testing. Build started in dependency waves.
+
 ## Blocked on
 
 (none)

@@ -33,7 +33,7 @@ Run the phases in order. After each one, update the feature file: set `phase`, l
 | 2 | backlog | product-manager | Epic, stories and edge-case trace in `docs/product/backlog.md` | User approves the stories | `docs(<slug>): backlog` |
 | 3 | architecture | software-architecture | ADRs, `docs/architecture.md` | User picks each open decision | `docs(<slug>): architecture decisions` |
 | 4 | design | ui-designer | `docs/design/<story-id>.md`, and `DESIGN.md` updates | Only if `DESIGN.md` changes, or is still a draft | `docs(<slug>): screen designs` |
-| 5 | build | backend, frontend, review, tester | Code, tests, `docs/product/api.md`, QA reports | Only when a story is stuck | One commit per `Verified` story, then push |
+| 5 | build | backend, frontend, review, tester | Code, `docs/product/api.md`, one batch QA report | Only when a story is stuck | One commit for the batch, then push |
 | 6 | release | devops | CI green, pull request, preview checked, production deploy | User confirms production | Release record (see Phase 6) |
 | 7 | done | (this skill) | Final report | None | None |
 
@@ -41,20 +41,23 @@ Run the phases in order. After each one, update the feature file: set `phase`, l
 
 **Commits.** Follow the git rules in `CLAUDE.md`: Conventional Commits naming the story, files staged by path, `git status` checked first, and no secrets. After a gate, commit only once the user has approved.
 
-## Phase 5: the build loop
+## Phase 5: the build loop (MVP batch mode)
 
-Take this feature's stories in dependency order: backend before the frontend that uses it. First, take every `E0 Foundation` story that is not yet `Verified`. They belong to whichever feature runs first, and every other story depends on them. A story may start only when all its dependencies are `Verified` or `Released`. For each story:
+Build every remaining story in the feature as one batch, then review, test and commit once. This trades per-story safety nets for speed; it is the right trade for a prototype's first pass, not for every project.
 
-1. **Build.** Invoke `backend` or `frontend`, according to the story's Owner. The story ends at `Done`, or at `Blocked` with a reason. A frontend story reaches `Done` only after its design review at the three viewports has passed.
-2. **Review.** Review the diff for this story with the `code-review` skill. If it is not available, review the diff yourself for correctness, security, ADR 0001 and the hard rules in `CLAUDE.md`. Also run `security-review` when the story touches sign-in, uploads, or input from the user. Weigh each finding with `superpowers:receiving-code-review`: check that it is real before acting on it. Fix findings that are inside the story's scope. Record any others as open questions in the backlog.
-3. **Test.** Invoke `tester` for this story. It sets `Verified`, or files a bug in the backlog's Bugs table.
-4. **Fix the bugs.** Hand each bug back to the story's owner skill, then review and test again. After two failed fix attempts on the same bug, stop. Set the story to `Blocked` and report to the user.
-5. **Commit and push.** When the story is `Verified`, commit its code, tests, backlog status, `api.md` changes and QA report together: `feat(<story-id>): <what it does>`, or `fix(BUG-<n>): ...` for a bug. Push the feature branch. CI and a Vercel preview start on every push.
-6. **Watch CI.** If `gh` is available, check the run for this push (`gh run list --branch feature/<slug> --limit 1`, then `gh run watch`). If CI fails on something that passed locally, treat it as a bug in this story and go back to step 4. Do not start the next story on a red build.
+Take this feature's stories in dependency order: backend before the frontend that uses it. First, take every `E0 Foundation` story that is not yet `Verified`. They belong to whichever feature runs first, and every other story depends on them. A story may start once its dependencies are `Done`, `Verified` or `Released` (it no longer needs to wait for `Verified` mid-batch).
+
+1. **Build each story.** Invoke `backend` or `frontend`, according to the story's Owner. The story ends at `Done`, or at `Blocked` with a reason. Run a quick smoke check (the story's own flow, not the full suite) before moving on; fix anything broken before starting the next story so failures don't stack silently. Skip the per-story three-viewport design review here; review screens once at the end of the batch instead.
+2. **Repeat** for every story in the batch.
+3. **Review once.** Review the full batch diff with the `code-review` skill (or yourself, if unavailable) for correctness, ADR 0001 and the hard rules in `CLAUDE.md`. Run a security review only on the parts of the diff that touch sign-in, uploads, secrets, or input trust boundaries. Fix findings in scope; record the rest as open questions in the backlog.
+4. **Test once.** Invoke `tester` for every story in the batch together. It writes one QA report covering all of them, and sets each to `Verified`, or files a bug per failing story in the Bugs table.
+5. **Fix bugs.** Hand each bug back to its owner skill, then re-run the affected tests (not necessarily the whole suite) before re-verifying. After two failed fix attempts on the same bug, stop, set that story `Blocked`, and report — the rest of the batch can still proceed to commit.
+6. **Commit and push once.** Commit the whole batch's code, tests, backlog status, `api.md` changes and the one QA report together: `feat(<epic-or-slug>): <what the batch does>`. Push the feature branch. CI and a Vercel preview start on this push.
+7. **Watch CI.** If `gh` is available, check the run (`gh run list --branch feature/<slug> --limit 1`, then `gh run watch`). If CI fails on something that passed locally, fix it and push again rather than starting a new batch on red.
 
 The phase ends when every story in the feature is `Verified` and CI is green on the latest push.
 
-**Large features.** When a feature has more than about six stories, run each story's build in a subagent, with the story ID, the relevant skill and the paths it needs. This keeps the main conversation small. Run the review, the test and the commit in the main conversation.
+**Large features.** When a feature has more than about six stories, run each story's build in a subagent, with the story ID, the relevant skill and the paths it needs. This keeps the main conversation small. Run the batch review, test and commit in the main conversation.
 
 ## Phase 6: release
 
@@ -139,9 +142,7 @@ Plugins add discipline inside the phases. They never replace a phase or a gate.
 | Phase | Companion skill |
 |-------|-----------------|
 | design | `frontend-design:frontend-design` (through ui-designer) |
-| build | `superpowers:test-driven-development`, `superpowers:systematic-debugging`, `superpowers:verification-before-completion` (through backend, frontend and tester) |
-| review | `code-review`, `security-review`, `superpowers:receiving-code-review` |
-| release | `security-review`, the `vercel:*` skills (through devops) |
-| always | `security-guidance` runs on its own: it warns when an edit introduces a risky pattern |
+| review | `code-review` |
+| release | the `vercel:*` skills (through devops); run `security-review` only on batches touching sign-in, uploads, secrets or input trust boundaries |
 
-While `/develop` runs, do not invoke `superpowers:brainstorming`, `superpowers:writing-plans`, `superpowers:executing-plans`, `superpowers:subagent-driven-development` or `superpowers:finishing-a-development-branch`. Phases 0 to 4 already do the brainstorming and planning, the backlog is the plan, and phase 6 is the branch finish. Running those skills too would add a second spec, a second plan and a second set of gates.
+MVP mode runs with `superpowers` and `security-guidance` disabled in `.claude/settings.json` to cut process overhead. Do not invoke `superpowers:brainstorming`, `superpowers:writing-plans`, `superpowers:executing-plans`, `superpowers:subagent-driven-development` or `superpowers:finishing-a-development-branch` even if present. Phases 0 to 4 already do the brainstorming and planning, the backlog is the plan, and phase 6 is the branch finish.

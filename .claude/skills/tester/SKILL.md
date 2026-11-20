@@ -13,7 +13,7 @@ Read `CLAUDE.md`, `docs/product/backlog.md`, `docs/product/api.md`, `docs/produc
 
 ## Steps
 
-1. **Collect the work.** Take the story you were given. Otherwise, take every story and bug at `Done`. Skip those already `Verified`.
+1. **Collect the work.** Take every story and bug at `Done` in the current batch. Skip those already `Verified`. Verify the whole batch together in one pass, not story by story.
 2. **Map criteria to tests.** For each acceptance criterion, decide the test level:
    - Backend logic, validation and authorization: unit or integration tests (Vitest), against the API contract in `api.md`.
    - User flows and screens: end-to-end tests (Playwright) in a browser. They run on all three viewport projects (`mobile`, `tablet`, `desktop`).
@@ -29,13 +29,13 @@ Read `CLAUDE.md`, `docs/product/backlog.md`, `docs/product/api.md`, `docs/produc
    - interactive elements are at least 44 × 44 px on `mobile` and `tablet`
    - the longest realistic content does not overflow its container
    Put shared helpers in `tests/e2e/support/`.
-5. **Run the tests.** Use the test commands in `CLAUDE.md`. Record the commands and their results.
+5. **Run the tests once for the whole batch.** Use the test commands in `CLAUDE.md`. Record the commands and their results.
 6. **Decide each story:**
    - All criteria and responsive checks pass, and the rest of the Definition of Done in `CLAUDE.md` holds: set the story to `Verified`.
    - Any criterion fails: leave it `Done`, and add a row to the Bugs table in the backlog. Give it the next ID `BUG-<n>`, the story ID, the criterion, the owner (`frontend` or `backend`), status `Todo`, and a link to the QA report.
    - A criterion cannot be tested: say why, and leave the story `Done`.
    - A fixed bug passes: set the bug to `Verified`. When the story has no open bugs and all its criteria pass, set the story to `Verified`.
-7. **Write the QA report** to `docs/product/qa/<YYYY-MM-DD>-<story-id>.md`. List the result of each criterion and each responsive check per viewport, the commands run, and the bugs found.
+7. **Write one QA report for the batch** to `docs/product/qa/<YYYY-MM-DD>-<slug-or-epic>.md`, covering every story tested in this pass. List the result of each criterion and each responsive check per viewport, the commands run, and the bugs found.
 8. **Report** the stories verified, the stories failing, and what is blocked. If `/develop` is running, return to it.
 
 ## Bug entries

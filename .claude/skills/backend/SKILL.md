@@ -19,10 +19,10 @@ Read `CLAUDE.md`, `docs/product/prd.md`, `GLOSSARY.md`, `docs/architecture.md` a
    - Restate its acceptance criteria.
    - Change the schema first, with a Drizzle migration. Then write the route or service logic.
    - Validate all input at the boundary. Check authorization on every route. Only the Admin role exists in v1.
-   - Write tests for each acceptance criterion, and run them.
+   - Write tests for each acceptance criterion, but run only this story's new test file as a smoke check before moving on. The full suite runs once at the end of the batch, in the tester's final pass.
 4. **Publish the contract.** Add each endpoint to `docs/product/api.md` (method, path, request, response, errors) so the frontend skill can use it.
 5. **Keep the commands current.** Do not rename the scripts CI calls. If you add a new command, add it to the Commands table in `CLAUDE.md`. If a story needs a new environment variable, add its name to `.env.example` and note it for devops.
-6. **Mark the work `Done`** in the backlog, but only when its tests, `npm run lint` and `npm run typecheck` pass. For a bug, set its row in the Bugs table to `Done`. The tester then verifies it.
+6. **Mark the work `Done`** in the backlog once its own test file, `npm run lint` and `npm run typecheck` pass. For a bug, set its row in the Bugs table to `Done`. The tester verifies the whole batch at the end.
 7. **Report** the stories completed, the stories blocked, and any criterion you could not check. If `/develop` is running, return to it.
 
 ## Stack
@@ -36,10 +36,7 @@ Read `CLAUDE.md`, `docs/product/prd.md`, `GLOSSARY.md`, `docs/architecture.md` a
 
 Use these if they are installed. This skill's steps and `CLAUDE.md` win where they disagree.
 
-- `superpowers:test-driven-development`: write each acceptance criterion's test first, watch it fail, then make it pass.
-- `superpowers:systematic-debugging`: for every bug from the Bugs table and every unexpected test failure. Find the root cause before changing code.
-- `superpowers:verification-before-completion`: run the checks and read their output before you set anything to `Done`.
-- `security-review`: on stories that touch sign-in, uploads to Vercel Blob, or input from the user.
+- `security-review`: run once, on the batch diff, when any story in it touches sign-in, uploads to Vercel Blob, secrets, or a trust-boundary validation change.
 
 ## Rules
 

@@ -380,3 +380,25 @@ export const target = pgTable(
     check("target_month_first_day", sql`extract(day from ${table.month}) = 1`),
   ],
 );
+
+/**
+ * A proof of a field visit: photo uploaded to Vercel Blob, GPS location, and On-site/Off-site
+ * determination (E4-S3). Every Check-in must have a photo (EC38). Marks its Activity Done. Photo
+ * URL is not guessable (UUID path), and fetch is restricted to signed-in Admin. On-site when GPS
+ * is within 200 m of the Prospect's location; otherwise Off-site. Stores distance and reason.
+ */
+export const checkin = pgTable(
+  "checkin",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    activityId: uuid("activity_id")
+      .notNull()
+      .references(() => activity.id, { onDelete: "restrict" }),
+    photoPath: text("photo_path").notNull(),
+    onSite: boolean("on_site").notNull(),
+    distanceM: doublePrecision("distance_m"),
+    gpsReason: text("gps_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("checkin_activity_id_idx").on(table.activityId)],
+);

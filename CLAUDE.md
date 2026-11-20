@@ -74,10 +74,10 @@ Each role is a skill in `.claude/skills/`, one folder per role. `/develop` (`.cl
   2 backlog        product-manager       stories, every edge case traced         [gate: approve stories]
   3 architecture   software-architecture docs/adr/, docs/architecture.md         [gate: pick each decision]
   4 design         ui-designer           docs/design/<story-id>.md, DESIGN.md
-  5 build, per story, in dependency order:
-                   backend | frontend (with a design review at 3 viewports)
-                   -> code review -> tester -> commit -> push (CI and a Vercel preview run)
-                   a failing check files BUG-<n> and goes back to the owner (2 tries, then Blocked)
+  5 build in dependency waves:
+                   backend | frontend -> targeted check -> mark Done
+                   after all stories: one batch review -> one tester pass -> one commit/push/CI
+                   a failing final check files BUG-<n>; fixes stay in the same batch
   6 release        devops                CI green, pull request, preview checked [gate: confirm production]
                                          merge to main -> Vercel production deploy
   7 done           backlog and feature file marked Released, final report
@@ -86,18 +86,18 @@ Each role is a skill in `.claude/skills/`, one folder per role. `/develop` (`.cl
 Everything between gates runs without asking. Each skill can also be run on its own.
 
 - **Story IDs:** `E<epic>-S<n>`. `E0` is Foundation: scaffold and CI, database, and Admin sign-in. Bugs are `BUG-<n>`.
-- **Statuses:** `Todo` → `In progress` → `Done` → `Verified` → `Released`, plus `Blocked` with a reason. Only the tester sets `Verified`. Only devops sets `Released`.
-- Build backend stories before the frontend stories that depend on them.
+- **Statuses:** `Todo` → `In progress` → `Done` → `Verified` → `Released`, plus `Blocked` with a reason. Only the final tester pass sets `Verified`. Only devops sets `Released`.
+- Build backend stories before the frontend stories that depend on them. A dependency at `Done` is sufficient during an active MVP batch; all become `Verified` together after final testing.
 
 ## Definition of Done
 
-A story is `Verified` only when all of these hold:
+Stories are marked `Done` after implementation and a targeted smoke check. After every story in the active MVP batch is `Done`, one final verification pass marks them `Verified` only when all of these hold:
 
-1. Every acceptance criterion has a test that ran and passed, including the criteria that come from edge cases.
-2. Lint, typecheck, unit tests and end-to-end tests pass locally.
-3. The code review and, where it applies, the security review have no open findings in scope.
-4. **Frontend stories:** the screen passes the responsive rules and the anti-slop checklist in `DESIGN.md`, at 360, 768 and 1280 px wide, with screenshots reviewed.
-5. The backlog, `docs/product/api.md` and `CLAUDE.md` commands are up to date.
+1. Every acceptance criterion has a test that ran and passed, including criteria from edge cases.
+2. Lint, typecheck, unit tests and end-to-end tests pass locally once for the batch.
+3. One batch code review has no open correctness findings. Run a security review only when the batch changes authentication, authorization, uploads, secrets, or trust-boundary validation.
+4. **Frontend stories:** each main flow works at 360, 768 and 1280 px. Review screenshots once per screen, normal state first; capture extra states only when visually distinct or risky.
+5. The backlog and `docs/product/api.md` are up to date. Write one batch QA report; no per-story QA reports.
 
 ## Git and release rules
 
@@ -107,21 +107,21 @@ The user has authorized `/develop` to commit and push feature branches automatic
 - Never commit to `main` directly, with two exceptions: the very first `chore: project setup` commit in an empty repository, and the docs-only `docs(<slug>): release record` commit after a confirmed release. Otherwise `main` changes only by merging a feature's pull request, and only after the user confirms the production release in the conversation.
 - Vercel and CI skip docs-only commits (`vercel.json` `ignoreCommand`, and `paths-ignore` in CI).
 - Commit messages follow Conventional Commits and name the story: `feat(E3-S1): ...`, `fix(BUG-4): ...`, `test(E3-S1): ...`, `docs(prospect-map): ...`, `chore(E0-S1): ...`. End every commit with the attribution trailer that Claude Code supplies.
-- Commit at these points: after each gate (the docs it produced), and after each story is `Verified` (code, tests and its status change together).
-- Push the feature branch after each story commit, so CI and a Vercel preview run early.
+- Commit after each gate. During build, commit once after the active MVP batch is `Verified`; code, tests and status changes travel together.
+- Push once after the batch commit. CI and Vercel preview run once for the batch.
 - Stage files by path. Never stage `.env*` files, secrets, `test-results/` or `playwright-report/`. Check `git status` before every commit.
 - Never force-push, rewrite published history, or skip hooks or CI.
 - Outside `/develop`, commit or push only when the user asks.
 
 ## Plugins
 
-`.claude/settings.json` enables superpowers, frontend-design, code-review and security-guidance from the official marketplace. They add discipline inside the phases: test-first, root-cause debugging, verification before Done, code and security review, and visual design. Each role skill lists its companions. The role skills and this file win over any plugin's own process. In particular, the product-owner, product-manager and architecture phases replace `superpowers:brainstorming` and `superpowers:writing-plans` for feature work, so do not run those inside `/develop`.
+`.claude/settings.json` enables frontend-design and code-review from the official marketplace. MVP mode leaves superpowers and security-guidance disabled to reduce automatic process overhead. Role skills and this file own the lifecycle. Use a focused security review only for authentication, authorization, uploads, secrets, or trust-boundary validation.
 
 ## Working rules for Claude
 
 - Read the story and its acceptance criteria before writing code.
 - Keep each change scoped to one story.
-- Do not mark a story Done while its checks are failing or have not been run.
+- Do not mark a story Done while its targeted smoke check is failing. Full checks run once after the active batch is built.
 - Do not change production code to make a test pass. Report the failure instead.
 - Record open questions in the brief or the backlog. Do not resolve them by guessing.
 

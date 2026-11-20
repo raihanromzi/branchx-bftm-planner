@@ -22,10 +22,10 @@ Read `CLAUDE.md`, `DESIGN.md`, `docs/product/prd.md`, `GLOSSARY.md`, `docs/produ
    - Build the edge cases the design file shows: GPS denied, a failed upload, a duplicate warning, and so on.
    - Use the tokens and components named in `DESIGN.md`. Do not hard-code colours, spacing, radius or font.
    - Build mobile first, then add the tablet and desktop layouts from the design file. Make it installable as a PWA where the PRD asks.
-4. **Check each acceptance criterion** by running the app or its tests.
-5. **Run the design review.** With the dev server running, capture screenshots with Playwright at the `mobile`, `tablet` and `desktop` viewports. Cover the normal state with the longest realistic content, plus the empty, loading and error states. Save them to `test-results/screens/<story-id>/`, which is git-ignored. Open every screenshot and go through the design review checklist in `DESIGN.md`. Fix each failure, take the screenshots again, and repeat until every item passes. Write the result in your report, one line per checklist item.
-6. **Run the local checks:** `npm run lint`, `npm run typecheck`, and the tests for this story.
-7. **Mark the work `Done`** in the backlog, but only when the criteria, the design review and the local checks all pass. For a bug, set its row in the Bugs table to `Done`. The tester then verifies it.
+4. **Smoke-check** the story by running the app or a quick test against its main flow. This is not the full design review — just enough to catch an obviously broken build before moving to the next story in the batch.
+5. **Mark the work `Done`** in the backlog once the smoke check passes. For a bug, set its row in the Bugs table to `Done`. The design review (step 5 below) and the full test run happen once, after every story in the batch reaches `Done`.
+6. **When the batch is complete** (every story built), run the design review once per screen: with the dev server running, capture screenshots with Playwright at the `mobile`, `tablet` and `desktop` viewports. Cover the normal state with the longest realistic content; add empty, loading or error states only where they are visually distinct or risky. Save them to `test-results/screens/<story-id>/`, which is git-ignored. Open every screenshot and go through the design review checklist in `DESIGN.md`. Fix each failure, take the screenshots again, and repeat until every item passes.
+7. **Run the local checks once for the batch:** `npm run lint`, `npm run typecheck`, and the tests for the batch's stories.
 8. **Report** the stories completed, the stories blocked, any criterion you could not check, and the design review result. If `/develop` is running, return to it.
 
 ## Stack
@@ -39,9 +39,6 @@ Read `CLAUDE.md`, `DESIGN.md`, `docs/product/prd.md`, `GLOSSARY.md`, `docs/produ
 Use these if they are installed. This skill's steps, the design file, `DESIGN.md` and `CLAUDE.md` win where they disagree.
 
 - `frontend-design:frontend-design`: for visual polish within the tokens and patterns in `DESIGN.md`. It does not override them.
-- `superpowers:test-driven-development`: write component and flow tests before the code where the criterion can be tested that way.
-- `superpowers:systematic-debugging`: for every bug from the Bugs table and every unexpected failure.
-- `superpowers:verification-before-completion`: run the app or the tests and read the output before you set anything to `Done`.
 
 ## Rules
 

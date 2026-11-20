@@ -1,14 +1,20 @@
-import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { Suspense } from "react";
+import { requireAdminPage } from "@/server/auth/page";
+import { JadwalScreen } from "@/components/activities/jadwal-screen";
 
-// Placeholder inside the app shell (E0-S4). Story E4-S2 builds this screen.
-export const metadata: Metadata = { title: "Jadwal" };
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Jadwal" };
 
-export default function SchedulePage() {
+export default async function JadwalPage() {
+  await requireAdminPage("/jadwal");
+
   return (
-    <PlaceholderPage
-      title="Jadwal"
-      description="Jadwal Kegiatan akan tampil di sini. Layar ini sedang disiapkan."
-    />
+    <Suspense fallback={<JadwalSkeleton />}>
+      <JadwalScreen />
+    </Suspense>
   );
+}
+
+function JadwalSkeleton() {
+  return <div className="p-4">Memuat jadwal...</div>;
 }

@@ -1,14 +1,20 @@
-import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { Suspense } from "react";
+import { requireAdminPage } from "@/server/auth/page";
+import { PetaScreen } from "@/components/map/peta-screen";
 
-// Placeholder inside the app shell (E0-S4). Story E6-S2 builds this screen.
-export const metadata: Metadata = { title: "Peta" };
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Peta" };
 
-export default function MapPage() {
+export default async function PetaPage() {
+  await requireAdminPage("/peta");
+
   return (
-    <PlaceholderPage
-      title="Peta"
-      description="Peta Prospect akan tampil di sini. Layar ini sedang disiapkan."
-    />
+    <Suspense fallback={<PetaSkeleton />}>
+      <PetaScreen />
+    </Suspense>
   );
+}
+
+function PetaSkeleton() {
+  return <div className="p-4">Memuat peta...</div>;
 }

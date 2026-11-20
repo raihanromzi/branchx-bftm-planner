@@ -1,10 +1,36 @@
-import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/shell/page-header";
+import { Suspense } from "react";
+import { notFound } from "next/navigation";
+import { requireAdminPage } from "@/server/auth/page";
+import { getPipeline } from "@/server/pipelines";
+import { getProspect } from "@/server/prospects";
+import { PipelineDetail } from "@/components/pipelines/pipeline-detail";
 
-// Placeholder inside the app shell, so the Prospect detail's "Buka Pipeline" links are not broken. Story
-// E3-S4 builds the Pipeline detail.
-export const metadata: Metadata = { title: "Pipeline" };
+export const dynamic = "force-dynamic";
 
-export default function PipelineDetailPage() {
-  return <PlaceholderPage title="Pipeline" description="Detail Pipeline akan tampil di sini. Layar ini sedang disiapkan." />;
+async function PipelineContent({ id }: { id: string }) {
+  try {
+    const pipeline = await getPipeline(id);
+    const prospect = await getProspect(pipeline.prospect.id);
+    return <PipelineDetail pipeline={pipeline} prospect={prospect} />;
+  } catch (error) {
+    if ((error as { code?: string })?.code === "not_found") {
+      notFound();
+    }
+    throw error;
+  }
+}
+
+export default async function PipelinePage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage("/pipeline/[id]");
+  const { id } = await params;
+
+  return (
+    <Suspense fallback={<PipelineDetailSkeleton />}>
+      <PipelineContent id={id} />
+    </Suspense>
+  );
+}
+
+function PipelineDetailSkeleton() {
+  return <div className="p-4">Memuat...</div>; // ponytail: placeholder, replace with real skeleton
 }
