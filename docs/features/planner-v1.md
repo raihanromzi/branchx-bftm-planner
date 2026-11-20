@@ -71,7 +71,7 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-20 BUG-5 attempt 2: replaced offset paging on Prospect detail with a validated Postgres-precision Activity cursor and ignored stale page responses after refresh. Typecheck, lint, 475 unit tests, 78 E2-S4 browser tests, full browser suite (345 passed, 6 skipped), build and diff check pass. Final code review pending; E2-S4 remains Done and uncommitted.
 - 2026-11-20 final review: six findings, five fixed (Start Pipeline 409 lock, ranged `listActivities` guard, e2e Activity cleanup by Pipeline, load-more during reload, cursor-only paging), lazy history skipped as out of scope. 476 unit tests, 78 E2-S4 and 345 full browser tests pass (6 skipped), build passes. E2-S4 and BUG-5 Verified.
 
-- 2026-11-20 build: CI run 44714110427 exposed BUG-6, a shell pathname hydration mismatch that blocked mobile and tablet navigation. Two-phase pathname rendering and a hydration-console regression added; full local checks passed.
+- 2026-11-20 build: CI run 44714110427 exposed BUG-6, a shell pathname hydration mismatch that blocked mobile and tablet navigation. Two-phase pathname rendering and a hydration-console regression added; full local checks and replacement CI run 44717649444 passed. E2-S4 and BUG-6 production deployment: `branchx-bftm-planner-btpjo4kzm`.
 
 ## Blocked on
 

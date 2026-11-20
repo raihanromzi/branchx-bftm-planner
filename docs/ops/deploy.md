@@ -24,6 +24,12 @@ Run `vercel env pull .env.local` to fetch the Development variables. `.env.local
 
 ## Releases
 
+### 2026-11-20: E2-S4 and BUG-6 promoted
+
+- preview at `16ab00d` (CI run 44717649444 green) promoted with `vercel promote`. created production deployment `branchx-bftm-planner-btpjo4kzm`. no new migration.
+- Checked `/api/health`: app and database both ok.
+- Rollback: `vercel rollback` to `branchx-bftm-planner-a9jp5v8cf`.
+
 ### 2026-11-19: BUG-4 promoted
 
 - The preview at `8067f2f` (CI run 44518940201 green) was promoted with `vercel promote`. This created production deployment `branchx-bftm-planner-a9jp5v8cf`. There was no new migration. `/api/health` gives ok.
