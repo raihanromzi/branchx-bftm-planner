@@ -3,7 +3,7 @@
 import { Ellipsis, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,12 @@ function NavIcon({ icon: Icon, current }: { icon: typeof Ellipsis; current: bool
 
 /** Mobile and tablet navigation (below 1024 px): four destinations and "Lainnya". */
 export function BottomNav({ className }: { className?: string }) {
-  const pathname = usePathname();
+  const routePathname = usePathname();
+  const [pathname, setPathname] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  // Next.js documents this two-phase render to avoid pathname hydration mismatches after client navigation.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setPathname(routePathname), [routePathname]);
   const settingsCurrent = isCurrent(pathname, SETTINGS_PREFIX);
 
   return (

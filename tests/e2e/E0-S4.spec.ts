@@ -69,6 +69,11 @@ test.describe("E0-S4 app shell", () => {
   });
 
   test("criterion 1: every destination is reachable and opens its screen", async ({ page }) => {
+    // BUG-6: a stale pathname in the shell's HTML must not cause a hydration mismatch (its overlay blocks taps).
+    const mismatches: string[] = [];
+    page.on("console", (message) => {
+      if (/hydrat/i.test(message.text())) mismatches.push(message.text());
+    });
     await page.goto("/");
     const nav = mainNav(page);
     for (const [label, path] of [
@@ -99,6 +104,7 @@ test.describe("E0-S4 app shell", () => {
       // On a Pengaturan screen, "Lainnya" is the current item.
       await expect(nav.getByRole("button", { name: "Lainnya" })).toHaveAttribute("aria-current", "page");
     }
+    expect(mismatches).toEqual([]);
   });
 
   test("criterion 6: Lainnya on mobile and tablet holds Pengaturan and Keluar", async ({ page }) => {

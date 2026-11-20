@@ -3,7 +3,7 @@
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { MAIN_DESTINATIONS, SETTINGS_DESTINATIONS, isCurrent } from "./destinations";
@@ -21,7 +21,11 @@ function rowClass(current: boolean) {
 
 /** Desktop navigation (1024 px and wider). `account` shows the signed-in email. */
 export function Sidebar({ account, className }: { account: ReactNode; className?: string }) {
-  const pathname = usePathname();
+  const routePathname = usePathname();
+  const [pathname, setPathname] = useState("");
+  // Next.js documents this two-phase render to avoid pathname hydration mismatches after client navigation.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setPathname(routePathname), [routePathname]);
 
   return (
     <aside
