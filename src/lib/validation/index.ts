@@ -534,6 +534,11 @@ export const createActivityInput = z.object({
 /** Cancelling an Activity (E4-S1 criterion 3): only the version the client loaded. */
 export const activityStatusInput = z.object({ version });
 
+/** One Prospect's Activity list (BUG-5): `view` picks the Scheduled ones or the finished ones; 100 rows per page. */
+export const ACTIVITY_VIEWS = ["upcoming", "history"] as const;
+export type ActivityView = (typeof ACTIVITY_VIEWS)[number];
+export const ACTIVITY_PAGE_SIZE = 100;
+
 /**
  * The query string of GET /api/activities (E4-S1 criterion 4): `from` and `to` are WIB calendar
  * days, both included. fundingOfficerId is optional. With prospectId (BUG-4, the Prospect detail),
@@ -550,10 +555,18 @@ export const activityListQuery = z.preprocess(
       to: calendarDate.optional(),
       fundingOfficerId: z.string().regex(UUID_PATTERN).optional(),
       prospectId: z.string().regex(UUID_PATTERN).optional(),
+      view: z.enum(ACTIVITY_VIEWS, { error: INVALID_MESSAGE }).optional(),
+      cursor: z.string().regex(UUID_PATTERN, { error: INVALID_MESSAGE }).optional(),
     })
     .superRefine((query, ctx) => {
       // A range is required unless a Prospect is given; a half range is never allowed.
       const noRange = query.from === undefined && query.to === undefined;
+      // `view` and `cursor` belong to one Prospect's list (no range): refuse them anywhere else, not ignore them.
+      if (!(noRange && query.prospectId !== undefined)) {
+        for (const key of ["view", "cursor"] as const) {
+          if (query[key] !== undefined) ctx.addIssue({ code: "custom", path: [key], message: INVALID_MESSAGE });
+        }
+      }
       if (!(noRange && query.prospectId !== undefined)) {
         for (const key of ["from", "to"] as const) {
           if (query[key] === undefined) ctx.addIssue({ code: "custom", path: [key], message: REQUIRED_MESSAGE });

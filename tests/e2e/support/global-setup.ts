@@ -35,9 +35,23 @@ export default async function globalSetup() {
   const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
   try {
     await sql`delete from sign_in_attempt where email = ${E2E_ADMIN.email}`;
-    // Funding Officers that earlier e2e runs created, and only those: every one has the e2e marker at the
-    // end of its name (support/funding-officers.ts). The API never deletes a Funding Officer (EC22), so
-    // without this they pile up in the dev database until the list's 200-row cap hides new ones.
+    // Activities (E4-S1, created by the E2-S4 tests) go before everything: they point to a Prospect, a
+    // Funding Officer and a Pipeline with restrict. Removed: Activities of e2e Prospects or Funding Officers.
+    await sql`
+      delete from activity
+      where prospect_id in (select id from prospect where name ~ ${E2E_NAME_PATTERN})
+         or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})
+         or prospect_id in (
+              select id from prospect
+              where funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN}))
+         or pipeline_id in (
+              select id from pipeline
+              where prospect_id in (
+                      select id from prospect
+                      where name ~ ${E2E_NAME_PATTERN}
+                         or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN}))
+                 or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})
+                 or template_id in (select id from pipeline_template where name ~ ${E2E_NAME_PATTERN}))`;
     // Pipelines (E3-S3) go first, with their Stages and Tasks (cascade): a Prospect, Funding Officer or
     // template cannot be deleted while a Pipeline points to it (restrict). Removed: Pipelines of e2e
     // Prospects, of e2e Funding Officers, or started from e2e templates.
@@ -55,6 +69,9 @@ export default async function globalSetup() {
       delete from prospect
       where name ~ ${E2E_NAME_PATTERN}
          or funding_officer_id in (select id from funding_officer where name ~ ${E2E_NAME_PATTERN})`;
+    // Funding Officers that earlier e2e runs created, and only those: every one has the e2e marker at the
+    // end of its name (support/funding-officers.ts). The API never deletes a Funding Officer (EC22), so
+    // without this they pile up in the dev database until the list's 200-row cap hides new ones.
     await sql`delete from funding_officer where name ~ ${E2E_NAME_PATTERN}`;
     // Pipeline Templates that e2e runs created (E3-S1); their Stages and Tasks go with them (cascade).
     // Their Pipelines were deleted above.

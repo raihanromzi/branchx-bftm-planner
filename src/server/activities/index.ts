@@ -7,7 +7,7 @@
 // Activity cannot slip onto a Prospect being archived) and the linked Pipeline's row FOR SHARE (an
 // Outcome change takes FOR UPDATE). Cancelling locks the Activity's row FOR UPDATE.
 import "server-only";
-import { type SQL, and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { type SQL, and, asc, desc, eq, gte, gt, lt, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { activity, fundingOfficer, pipeline, pipelineStage, prospect } from "@/db/schema";
 import { type Db, type Tx, getDb } from "@/server/db";
@@ -15,8 +15,10 @@ import { assertAssignableFundingOfficer } from "@/server/funding-officers";
 import { ApiError, invalidState, notFound, updateWithVersion, versionConflict } from "@/server/http";
 import { PROSPECT_ARCHIVED_MESSAGE } from "@/server/prospects";
 import {
+  ACTIVITY_PAGE_SIZE,
   ACTIVITY_STATUS_LABELS,
   type ActivityStatus,
+  type ActivityView,
   type PipelineOutcome,
   type activityListQuery,
   type activityStatusInput,
@@ -24,8 +26,10 @@ import {
 } from "@/server/validation";
 
 export {
+  ACTIVITY_PAGE_SIZE,
   ACTIVITY_STATUSES,
   ACTIVITY_STATUS_LABELS,
+  ACTIVITY_VIEWS,
   DATE_RANGE_MESSAGE,
   STARTS_AT_MESSAGE,
   activityListQuery,
@@ -38,9 +42,6 @@ export const PROSPECT_NOT_FOUND_MESSAGE = "Prospect tidak ditemukan.";
 export const PIPELINE_NOT_LINKABLE_MESSAGE = "Pipeline harus Pipeline berjalan milik Prospect ini.";
 /** The idempotency scope of POST /api/activities. */
 export const CREATE_SCOPE = "activity.create";
-
-/** The most Activities one Prospect's history returns (BUG-4), as for its Pipelines. */
-export const PROSPECT_LIST_LIMIT = 100;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -123,24 +124,61 @@ export async function getActivity(id: string, { db = getDb(), now = new Date() }
 
 /**
  * Every Activity starting on the WIB days `from` to `to` (both included), of any status, in time order
- * (E4-S1 criterion 4, EC8). Optionally one Funding Officer's, or one Prospect's. With a Prospect and
- * no range (BUG-4, the Prospect detail): its newest PROSPECT_LIST_LIMIT, newest first.
+ * (E4-S1 criterion 4, EC8). Optionally one Funding Officer's, or one Prospect's. For one Prospect without
+ * a range, use listProspectActivities.
  */
 // ponytail: no page limit, since a week is about 100 Activities (brief); add a range cap if Jadwal ever asks for months.
 export async function listActivities(
   query: z.output<typeof activityListQuery>,
   { db = getDb(), now = new Date() }: Options = {},
 ): Promise<ActivityRecord[]> {
+  // Defensive: a missing range would return every Activity unbounded. The route validates this too.
+  if (!query.from || !query.to) throw new ApiError(400, "validation", "Periksa kembali isian yang ditandai.", { from: "Wajib diisi.", to: "Wajib diisi." });
   const where = and(
     query.from ? gte(activity.startsAt, sql`(${query.from}::date)::timestamp at time zone 'Asia/Jakarta'`) : undefined,
     query.to ? lt(activity.startsAt, sql`(${query.to}::date + 1)::timestamp at time zone 'Asia/Jakarta'`) : undefined,
     query.fundingOfficerId ? eq(activity.fundingOfficerId, query.fundingOfficerId) : undefined,
     query.prospectId ? eq(activity.prospectId, query.prospectId) : undefined,
   );
-  const rows = query.from
-    ? await selectRecords(db, where)
-    : await selectRecords(db, where, true).limit(PROSPECT_LIST_LIMIT);
+  const rows = await selectRecords(db, where);
   return rows.map((row) => toRecord(row, now));
+}
+
+/**
+ * One Prospect's Activities without a date range (BUG-4, BUG-5, the Prospect detail), in pages of
+ * ACTIVITY_PAGE_SIZE rows. `view` "upcoming" is the Scheduled ones, soonest first (an Overdue one comes first,
+ * EC30); "history" is the Done and Cancelled ones, newest first; no view is every status, newest first.
+ * `hasMore` says a next page exists.
+ */
+// Activity IDs anchor cursors to immutable startsAt/id values in Postgres, preserving timestamp precision.
+// Activities cannot be deleted. Status changes do not invalidate the anchor.
+export async function listProspectActivities(
+  query: { prospectId: string; fundingOfficerId?: string; view?: ActivityView; cursor?: string },
+  { db = getDb(), now = new Date() }: Options = {},
+): Promise<{ items: ActivityRecord[]; hasMore: boolean }> {
+  if (query.cursor) {
+    const [anchor] = await db.select({ id: activity.id }).from(activity).where(and(
+      eq(activity.id, query.cursor), eq(activity.prospectId, query.prospectId),
+      query.fundingOfficerId ? eq(activity.fundingOfficerId, query.fundingOfficerId) : undefined,
+    ));
+    if (!anchor) throw new ApiError(400, "validation", "Periksa kembali isian yang ditandai.", { cursor: "Isian tidak valid." });
+  }
+  // Compare in SQL against the anchor row, so startsAt keeps Postgres precision (no JS Date round trip).
+  const anchorStartsAt = sql`(select ${activity.startsAt} from ${activity} where ${activity.id} = ${query.cursor ?? null})`;
+  const where = and(
+    query.cursor ? (query.view === "upcoming"
+      ? or(gt(activity.startsAt, anchorStartsAt), and(eq(activity.startsAt, anchorStartsAt), gt(activity.id, query.cursor)))
+      : or(lt(activity.startsAt, anchorStartsAt), and(eq(activity.startsAt, anchorStartsAt), lt(activity.id, query.cursor)))) : undefined,
+    eq(activity.prospectId, query.prospectId),
+    query.fundingOfficerId ? eq(activity.fundingOfficerId, query.fundingOfficerId) : undefined,
+    query.view === "upcoming" ? eq(activity.status, "scheduled") : undefined,
+    query.view === "history" ? ne(activity.status, "scheduled") : undefined,
+  );
+  const rows = await selectRecords(db, where, query.view !== "upcoming").limit(ACTIVITY_PAGE_SIZE + 1);
+  return {
+    items: rows.slice(0, ACTIVITY_PAGE_SIZE).map((row) => toRecord(row, now)),
+    hasMore: rows.length > ACTIVITY_PAGE_SIZE,
+  };
 }
 
 /**

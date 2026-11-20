@@ -8,6 +8,9 @@ import { getAdmin, requireAdminPage } from "@/server/auth/page";
 // The signed-in app shell (E0-S4). The navigation renders at once; anything that reads the session streams
 // in behind a Suspense boundary (Cache Components). proxy.ts already sent cookie-less visits to /masuk; the
 // gate below is the real check (ADR 0002), for a cookie whose session has ended.
+// BottomNav and Sidebar read the pathname (usePathname). Under a route with a dynamic segment that is known
+// only at request time, so each sits in its own Suspense boundary, with a fallback of the same size: the
+// rest of the shell still prerenders (node_modules/next/dist/docs/.../use-pathname.md, Cache Components).
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-dvh flex-1">
@@ -17,14 +20,16 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       >
         Lewati ke konten
       </a>
-      <Sidebar
-        className="hidden lg:flex"
-        account={
-          <Suspense fallback={<span className="block h-5 w-40 rounded-lg bg-muted" />}>
-            <AdminEmail />
-          </Suspense>
-        }
-      />
+      <Suspense fallback={<aside aria-hidden className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-border bg-surface lg:block" />}>
+        <Sidebar
+          className="hidden lg:flex"
+          account={
+            <Suspense fallback={<span className="block h-5 w-40 rounded-lg bg-muted" />}>
+              <AdminEmail />
+            </Suspense>
+          }
+        />
+      </Suspense>
       <main
         id="konten"
         tabIndex={-1}
@@ -34,7 +39,16 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <AdminGate>{children}</AdminGate>
         </Suspense>
       </main>
-      <BottomNav className="lg:hidden" />
+      <Suspense
+        fallback={
+          <div
+            aria-hidden
+            className="fixed inset-x-0 bottom-0 z-40 h-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom))] border-t border-border bg-background lg:hidden"
+          />
+        }
+      >
+        <BottomNav className="lg:hidden" />
+      </Suspense>
       <Toaster position="top-center" />
     </div>
   );

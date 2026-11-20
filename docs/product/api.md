@@ -966,17 +966,27 @@ Every endpoint needs an Admin session (`401 unauthorized` otherwise). Mutations 
 | `pipeline` | The linked Pipeline with its **current** Outcome and Stage, or `null`. It was open when linked; it may have closed since. |
 | `version` | Cancel checks it. Archiving the Prospect's cancellation also increases it. |
 
-### `GET /api/activities?from=&to=&fundingOfficerId=&prospectId=`
+### `GET /api/activities?from=&to=&fundingOfficerId=&prospectId=&view=&cursor=`
 
 Every Activity, of any status, whose `startsAt` falls on the WIB days `from` to `to` (both included), **in time order** (then by id). No paging: a week is about 100 Activities (EC8). Answers `{ "items": [ <record>, … ] }`.
 
-With `prospectId` and no range (BUG-4, the Prospect detail page), it answers that Prospect's newest 100 Activities, **newest first**, like `GET /api/pipelines?prospectId=`.
+**One Prospect's list (BUG-4, BUG-5, the Prospect detail page).** With `prospectId` and no range, it answers that Prospect's Activities **in pages of 100**, with concurrent-safe `cursor` paging: `{ "items": [ … ], "hasMore": true }`. `hasMore` is `true` when a next page exists. Pass the last returned Activity id as `cursor`; ordering uses its immutable `startsAt` and id, so status changes cannot skip unseen rows. A request with a date range answers `{ "items": [ … ] }` as before, without `hasMore`.
+
+| `view` | Rows | Order |
+|--------|------|-------|
+| `upcoming` | Scheduled Activities, **including Overdue ones** (EC30) | Soonest first, so an Overdue one comes first |
+| `history` | Done and Cancelled Activities | Newest first |
+| (left out) | Every status | Newest first |
+
+The detail page reads `view=upcoming` and `view=history` as two lists, so an old Overdue Activity is never hidden behind newer finished ones. "Muat lebih banyak" sends the last returned Activity id as `cursor` until `hasMore` is `false`.
 
 | Parameter | Meaning |
 |-----------|---------|
 | `from`, `to` | Required, unless `prospectId` is given and both are left out. WIB calendar days `"YYYY-MM-DD"`. `to` must not be before `from` ("Tanggal akhir tidak boleh sebelum tanggal awal."). A day that does not exist: "Tanggal tidak valid." |
 | `fundingOfficerId` | Optional. A Funding Officer's id (a UUID). Blank counts as missing. |
 | `prospectId` | Optional. A Prospect's id (a UUID). Blank counts as missing. |
+| `view` | Optional, only with `prospectId` and no range: `upcoming` or `history`. Anything else: `400` "Isian tidak valid." With a range or without `prospectId`: the same `400`. |
+| `cursor` | Optional, only with `prospectId` and no range: UUID of the last returned Activity. Uses its immutable `startsAt` and id anchor. Otherwise `400` "Isian tidak valid." |
 
 | Status | Body | When |
 |--------|------|------|
@@ -1044,7 +1054,7 @@ The zod schemas are exported from `@/lib/validation`: `createActivityInput`, `ac
 
 ### Server-side helpers (for later stories)
 
-From `@/server/activities`: `getActivity(id, { db, now })`, `listActivities({ from, to, fundingOfficerId? }, { db, now })`, `listOverdueActivities({ db, now })` and `cancelActivity`. E4-S3 sets `done` inside its Check-in transaction. From `@/server/prospects`: `getArchivePreview(id)`.
+From `@/server/activities`: `getActivity(id, { db, now })`, `listActivities({ from, to, fundingOfficerId? }, { db, now })`, where `from` and `to` are both required (a missing one is `400`), `listOverdueActivities({ db, now })` and `cancelActivity`. E4-S3 sets `done` inside its Check-in transaction. From `@/server/prospects`: `getArchivePreview(id)`.
 
 ## Targets
 

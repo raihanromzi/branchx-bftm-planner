@@ -114,7 +114,7 @@ Release:
 | E2-S1 | As an Admin, I want to create, edit, search, archive and restore Prospects, so that I have one reliable list. | 8 | backend | E1-S1, E0-S6 | Verified |
 | E2-S2 | As an Admin, I want a paged Prospect list with search and filters, so that I can find any Prospect fast on my phone. | 5 | frontend | E2-S1, E0-S5 | Verified |
 | E2-S3 | As an Admin, I want a Prospect form with a location picker, so that I can add a Prospect in the field in under a minute. | 5 | frontend | E2-S1, E0-S5 | Verified |
-| E2-S4 | As an Admin, I want a Prospect detail page, so that I see its data, its Pipelines and its Activities in one place. | 3 | frontend | E2-S3, E3-S3, E4-S1 | Todo |
+| E2-S4 | As an Admin, I want a Prospect detail page, so that I see its data, its Pipelines and its Activities in one place. | 3 | frontend | E2-S3, E3-S3, E4-S1 | Verified |
 
 ### E2-S1 acceptance criteria
 1. A Prospect has: name (required, 1 to 150 characters), Category (Sekolah, Pasar, Perusahaan, Instansi, Komunitas or Lainnya), address, location (optional latitude and longitude), Contact Person (name, role, phone), Potential Accounts, Funding Officer (required, active) and a note. There is no field for an account holder. (EC7, EC9)
@@ -431,7 +431,7 @@ Resolved:
 
 ## Follow-ups
 
-- **Shell and dynamic routes (from E2-S2).** `src/components/shell/bottom-nav.tsx` calls `usePathname()` outside a Suspense boundary, which blocks prerendering for routes with a dynamic segment. The placeholder `src/app/(app)/prospect/[id]/page.tsx` works around it with `export const instant = false`, and so do `src/app/(app)/prospect/[id]/ubah/page.tsx` (E2-S3) and `src/app/(app)/pengaturan/template-pipeline/[id]/page.tsx` (E3-S2). E2-S4 builds the real detail page and fixes this in the shell, so no page needs the workaround.
+- **Shell and dynamic routes (from E2-S2). Resolved in E2-S4.** The shell's `Sidebar` and `BottomNav` (they call `usePathname()`) now each sit in their own Suspense boundary in `src/app/(app)/layout.tsx`, with a fallback of the same size, so a route with a dynamic segment prerenders its shell. The `export const instant = false` workaround is gone from `/prospect/[id]`, `/prospect/[id]/ubah` and `/pengaturan/template-pipeline/[id]`.
 - **Inactive Funding Officer filter (from E1-S3).** E1-S4 #3 needs a query parameter on `GET /api/prospects` that keeps only Prospects whose Funding Officer is inactive. It does not exist yet. E1-S4 adds it (a small backend change inside that story).
 - **"Open" across the API (from E1-S3).** The deactivation preview and the dashboard count open Pipelines with no Outcome, as GLOSSARY.md defines "open". The Prospect list's `openPipeline` field also includes On Hold. If the BFTM wants On Hold Pipelines in the "2 Pipeline" count of the deactivation confirmation, that is a one-condition change.
 
@@ -439,6 +439,7 @@ Resolved:
 
 | ID | Story | Criterion | Owner | Status | Report |
 |----|-------|-----------|-------|--------|--------|
+| BUG-5 | E2-S4 | 1, 4, EC18, accessibility | frontend | Verified | [QA 2026-11-20-E2-S4](qa/2026-11-20-E2-S4.md): truncated Activity history, stale detail state and archive preview, stale map viewport, inaccessible attribution. |
 | BUG-4 | E4-S1 | 4 (for E2-S4 #1) | backend | Verified | Found when building E2-S4: the Prospect detail needs its upcoming and past Activities, and `GET /api/activities` required a date range and had no Prospect filter. Fixed: an optional `prospectId`, which allows leaving out the range and then answers the newest 100, newest first. Test "BUG-4" in `tests/unit/E4-S1.test.ts`. |
 | BUG-3 | E3-S2 | EC18 | tester | Verified | CI run 44436939557: the EC18 test edited before the editor loaded, so it could load the new version and see no conflict; the E3-S1 delete got 422 last_template because the unit tests truncate `bftm_test`, the same database the e2e run used, removing "Umum". Fixed: the test waits for the loaded Stage, and CI gives e2e its own migrated database. |
 | BUG-2 | E2-S3 | 1 | frontend | Verified | [QA 2026-11-19-E2-S3](qa/2026-11-19-E2-S3.md#bug-2-focus-lost-after-a-server-field-error) |

@@ -390,6 +390,7 @@ test.describe("E2-S2 Prospect list", () => {
 
     await page.getByRole("link", { name: prospect.name, exact: true }).filter({ visible: true }).click();
     await expect(page).toHaveURL(new RegExp(`/prospect/${prospect.id}$`));
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Detail Prospect");
+    // E2-S4 replaced the placeholder: the detail page shows the Prospect's name as a heading.
+    await expect(page.getByRole("heading", { name: prospect.name, exact: true })).toBeVisible();
   });
 });

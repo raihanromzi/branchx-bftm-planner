@@ -67,6 +67,10 @@ read the PRD in @CLAUDE.md and develop the feature version 1
 - 2026-11-20 resume: the user confirmed the uncommitted changes are interrupted development work and asked to finish all remaining features and pages. Resumed E2-S4 without discarding them.
 - 2026-11-20 architecture gate: the user chose a 4 MB Check-in photo limit rather than direct browser-to-Blob uploads. Vercel's 4.5 MB Function body limit contradicts ADR 0004's original premise. PRD, brief, backlog, design copy and ADR 0004 updated. Private Blob store `bftm-planner-checkins` provisioned in `sin1` and connected to all environments. The CLI overwrote `.env.local`; Docker database URLs were restored immediately, retaining the Blob credential.
 
+- 2026-11-20 QA: E2-S4 initial full local checks passed (469 unit tests; 324 browser tests passed, 6 viewport-specific skips). Security review found no high-confidence HIGH/MEDIUM issues. Code review found five defects, recorded as BUG-5 in the QA report; owner fix attempt 1 followed.
+- 2026-11-20 BUG-5 attempt 2: replaced offset paging on Prospect detail with a validated Postgres-precision Activity cursor and ignored stale page responses after refresh. Typecheck, lint, 475 unit tests, 78 E2-S4 browser tests, full browser suite (345 passed, 6 skipped), build and diff check pass. Final code review pending; E2-S4 remains Done and uncommitted.
+- 2026-11-20 final review: six findings, five fixed (Start Pipeline 409 lock, ranged `listActivities` guard, e2e Activity cleanup by Pipeline, load-more during reload, cursor-only paging), lazy history skipped as out of scope. 476 unit tests, 78 E2-S4 and 345 full browser tests pass (6 skipped), build passes. E2-S4 and BUG-5 Verified.
+
 ## Blocked on
 
 (none)

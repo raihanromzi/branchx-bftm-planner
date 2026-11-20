@@ -459,6 +459,112 @@ describe("E4-S1 Activities", () => {
       expect((await errorOf(bad)).fields?.prospectId).toBe("Isian tidak valid.");
     });
 
+    it("BUG-5: a Prospect's Activities page without losing any, and upcoming and history are separate lists", async () => {
+      const prospectId = await insertProspect("SDN 3 Cibinong");
+      const other = await insertProspect("SMP 1 Bogor");
+      // The oldest Activity is an Overdue Scheduled one, older than 100 newer Scheduled ones.
+      const overdue = await createOk({ prospectId, startsAt: inHours(-24 * 30), purpose: "Terlambat lama" });
+      for (let i = 0; i < 101; i++) await createOk({ prospectId, startsAt: inHours(i + 1), purpose: `Nanti ${i}` });
+      // Finished work: 3 Cancelled and 1 Done.
+      for (let i = 0; i < 3; i++) {
+        const made = await createOk({ prospectId, startsAt: inHours(-2 - i), purpose: `Batal ${i}` });
+        await cancel(made.id, made.version);
+      }
+      await createOk({ prospectId: other, startsAt: inHours(5), purpose: "Milik lain" });
+      const done = await createOk({ prospectId, startsAt: inHours(-48), purpose: "Selesai" });
+      await sql`update activity set status = 'done' where id = ${done.id}`;
+
+      const page = async (query: string) => {
+        const response = await list(`?prospectId=${prospectId}${query}`);
+        expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+        return (await response.json()) as { items: Activity[]; hasMore: boolean };
+      };
+
+      // Upcoming: Scheduled only, the Overdue one first, 100 per page, then the rest.
+      const up1 = await page("&view=upcoming");
+      expect(up1.items).toHaveLength(100);
+      expect(up1.hasMore).toBe(true);
+      expect(up1.items[0].id).toBe(overdue.id);
+      expect(up1.items[0].overdue).toBe(true);
+      expect(up1.items.every((item) => item.status === "scheduled")).toBe(true);
+      const up2 = await page(`&view=upcoming&cursor=${up1.items.at(-1)!.id}`);
+      expect(up2.items).toHaveLength(2);
+      expect(up2.hasMore).toBe(false);
+      const upIds = [...up1.items, ...up2.items].map((item) => item.id);
+      expect(new Set(upIds).size).toBe(102);
+      expect(upIds).toContain(overdue.id);
+
+      // History: Done and Cancelled only, newest first.
+      const history = await page("&view=history");
+      expect(history.items.map((item) => item.purpose)).toEqual(["Batal 0", "Batal 1", "Batal 2", "Selesai"]);
+      expect(history.hasMore).toBe(false);
+
+      // No view: every status, newest first; the last page reaches the oldest, so nothing is cut silently.
+      const all1 = await page("");
+      const all2 = await page(`&cursor=${all1.items.at(-1)!.id}`);
+      expect(all1.hasMore).toBe(true);
+      expect(all1.items).toHaveLength(100);
+      expect(all2.hasMore).toBe(false);
+      expect([...all1.items, ...all2.items]).toHaveLength(106);
+      expect(all2.items.at(-1)?.id).toBe(overdue.id);
+
+      // The Funding Officer filter still applies to a Prospect's list (BUG-4).
+      expect((await page(`&fundingOfficerId=${agus.id}`)).items).toEqual([]);
+      expect((await page(`&view=history&fundingOfficerId=${rina.id}`)).items).toHaveLength(4);
+
+      // A cursor at the last history row returns an empty next page, not an error.
+      expect(await page(`&view=history&cursor=${history.items.at(-1)!.id}`)).toEqual({ items: [], hasMore: false });
+    });
+
+    it("BUG-5: cursor paging does not skip an unseen Scheduled Activity when an earlier row is cancelled", async () => {
+      const prospectId = await insertProspect("SDN 3 Cibinong");
+      const startsAt = inHours(24);
+      for (let i = 0; i < 102; i++) await createOk({ prospectId, startsAt, purpose: `Kunjungan ${i}` });
+
+      const response1 = await list(`?prospectId=${prospectId}&view=upcoming`);
+      expect(response1.status).toBe(200);
+      const first = (await response1.json()) as { items: Activity[]; hasMore: boolean };
+      expect(first.items).toHaveLength(100);
+      expect(first.hasMore).toBe(true);
+
+      await cancel(first.items[0].id, first.items[0].version);
+      const cursor = first.items.at(-1)?.id;
+      const response2 = await list(`?prospectId=${prospectId}&view=upcoming&cursor=${cursor}`);
+      expect(response2.status).toBe(200);
+      const second = (await response2.json()) as { items: Activity[]; hasMore: boolean };
+      expect(second.items).toHaveLength(2);
+      expect(second.hasMore).toBe(false);
+      expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(102);
+    });
+
+    it("BUG-5: rejects a bad view or cursor, and refuses them without a Prospect or with a range", async () => {
+      const prospectId = await insertProspect("SDN 3 Cibinong");
+      const other = await insertProspect("SDN 4 Cibinong");
+      const otherActivity = await createOk({ prospectId: other, startsAt: inHours(1), purpose: "Lain" });
+      for (const query of [
+        `?prospectId=${prospectId}&view=semua`,
+        `?prospectId=${prospectId}&cursor=tidak-valid`,
+        `?prospectId=${prospectId}&cursor=${MISSING_ID}`,
+        `?prospectId=${prospectId}&cursor=${otherActivity.id}`,
+      ]) {
+        const response = await list(query);
+        expect(response.status, query).toBe(400);
+      }
+      expect(((await errorOf(await list(`?prospectId=${prospectId}&view=semua`))).fields ?? {}).view).toBe("Isian tidak valid.");
+      // `view` and `cursor` are for one Prospect's list: not with a date range, and not alone.
+      const ranged = await list(`?prospectId=${prospectId}&from=2099-11-19&to=2099-11-19&view=upcoming`);
+      expect(ranged.status).toBe(400);
+      expect((await errorOf(ranged)).fields?.view).toBe("Isian tidak valid.");
+      const alone = await list(`?from=2099-11-19&to=2099-11-19&cursor=${MISSING_ID}`);
+      expect(alone.status).toBe(400);
+      expect((await errorOf(alone)).fields?.cursor).toBe("Isian tidak valid.");
+    });
+
+    it("the ranged service refuses a missing range instead of listing every Activity", async () => {
+      await expect(listActivities({ to: "2099-11-19" })).rejects.toMatchObject({ status: 400 });
+      await expect(listActivities({})).rejects.toMatchObject({ status: 400 });
+    });
+
     it("includes Done and Cancelled Activities, and flags only Scheduled ones in the past as overdue", async () => {
       const prospectId = await insertProspect("SDN 3 Cibinong");
       const late = await createOk({ prospectId, startsAt: inHours(-2), purpose: "Terlambat" });

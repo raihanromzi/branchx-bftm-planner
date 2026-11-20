@@ -6,18 +6,21 @@ import type { MouseEvent, ReactNode } from "react";
  * The page title (docs/design/E0-S4.md). Below 1024 px it is the 56 px top bar: 20 px, one line, with an
  * optional back control. From 1024 px it is the page header row: 28 px, with the page's primary action on
  * the right. A truncated title must be repeated in full as the page's first heading below it.
+ * `mobileAction` sits at the right of the top bar below 1024 px (a detail page's ⋯ menu).
  */
 export function PageHeader({
   title,
   backHref,
   onBack,
   action,
+  mobileAction,
 }: {
-  title: string;
+  title: ReactNode;
   backHref?: string;
   /** Runs before the back link navigates; call `event.preventDefault()` to stay (an unsaved-changes guard). */
   onBack?: (event: MouseEvent<HTMLAnchorElement>) => void;
   action?: ReactNode;
+  mobileAction?: ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-30 flex h-(--top-bar-height) items-center gap-2 border-b border-border bg-background px-4 lg:static lg:h-auto lg:gap-4 lg:border-0 lg:px-6 lg:pt-6 lg:pb-4">
@@ -33,6 +36,7 @@ export function PageHeader({
       )}
       <h1 className="min-w-0 flex-1 truncate text-xl font-semibold lg:text-2xl lg:whitespace-normal">{title}</h1>
       {action && <div className="hidden shrink-0 lg:block">{action}</div>}
+      {mobileAction && <div className="-mr-2 shrink-0 lg:hidden">{mobileAction}</div>}
     </header>
   );
 }

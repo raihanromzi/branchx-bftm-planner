@@ -226,6 +226,12 @@ function ProspectForm({
     element?.focus({ preventScroll: true });
   }, [focusRequest]);
 
+  // "Tambah lokasi" on the Prospect detail (EC34) opens this form at #lokasi. The form renders after its data
+  // loads, so the browser's own anchor jump has already passed: scroll once, on mount.
+  useEffect(() => {
+    if (window.location.hash === "#lokasi") document.getElementById("lokasi")?.scrollIntoView({ block: "start" });
+  }, []);
+
   // The Funding Officer select lists the active ones, plus the Prospect's own when it is no longer active.
   const currentOfficer = record?.fundingOfficer;
   const officerOptions =
@@ -528,6 +534,7 @@ function ProspectForm({
 
           {/* Lokasi: after Kategori in one column; the right column from 1280 px. */}
           <section
+            id="lokasi"
             aria-labelledby={fieldId("location-heading")}
             className="flex flex-col gap-3 border-t border-border pt-4 xl:col-start-2 xl:row-span-5 xl:row-start-1 xl:self-start xl:border-0 xl:pt-0"
           >

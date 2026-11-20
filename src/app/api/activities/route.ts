@@ -6,6 +6,7 @@ import {
   createActivityInput,
   getActivity,
   listActivities,
+  listProspectActivities,
 } from "@/server/activities";
 import {
   assertSameOrigin,
@@ -18,12 +19,19 @@ import {
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-/** Every Activity on the WIB days from..to, in time order, with `overdue` (E4-S1 criterion 4). */
+/**
+ * Every Activity on the WIB days from..to, in time order, with `overdue` (E4-S1 criterion 4). With a
+ * `prospectId` and no range: that Prospect's Activities, paged, with `hasMore` (BUG-4, BUG-5).
+ */
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
     const parsed = activityListQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) throw validationApiError(parsed.error);
+    const { from, prospectId, fundingOfficerId, view, cursor } = parsed.data;
+    if (from === undefined && prospectId !== undefined) {
+      return Response.json(await listProspectActivities({ prospectId, fundingOfficerId, view, cursor }), { headers: NO_STORE });
+    }
     return Response.json({ items: await listActivities(parsed.data) }, { headers: NO_STORE });
   } catch (error) {
     return toErrorResponse(error);

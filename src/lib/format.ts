@@ -18,6 +18,7 @@ const timeFormat = new Intl.DateTimeFormat(LOCALE, {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: TIME_ZONE, weekday: "short" });
 const monthFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: TIME_ZONE, month: "long", year: "numeric" });
 
 type DateInput = Date | string | number;
@@ -47,6 +48,11 @@ export function formatTime(value: DateInput): string {
 /** → "18 Nov 2026, 14.30 WIB". */
 export function formatDateTime(value: DateInput): string {
   return `${formatDate(value)}, ${formatTime(value)}`;
+}
+
+/** → "Kam, 20 Nov 2026, 09.00 WIB". */
+export function formatWeekdayDateTime(value: DateInput): string {
+  return `${weekdayFormat.format(toDate(value))}, ${formatDateTime(value)}`;
 }
 
 /** → "November 2026". */
