@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { requireAdminPage } from "@/server/auth/page";
 import { TargetScreen } from "@/components/targets/target-screen";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Target" };
 
 export default async function TargetPage() {

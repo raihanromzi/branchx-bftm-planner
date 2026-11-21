@@ -5,19 +5,16 @@ import { getPipeline } from "@/server/pipelines";
 import { getProspect } from "@/server/prospects";
 import { PipelineDetail } from "@/components/pipelines/pipeline-detail";
 
-export const dynamic = "force-dynamic";
-
 async function PipelineContent({ id }: { id: string }) {
-  try {
-    const pipeline = await getPipeline(id);
-    const prospect = await getProspect(pipeline.prospect.id);
-    return <PipelineDetail pipeline={pipeline} prospect={prospect} />;
-  } catch (error) {
-    if ((error as { code?: string })?.code === "not_found") {
-      notFound();
-    }
+  const pipeline = await getPipeline(id).catch((error: unknown) => {
+    if ((error as { code?: string })?.code === "not_found") notFound();
     throw error;
-  }
+  });
+  const prospect = await getProspect(pipeline.prospect.id).catch((error: unknown) => {
+    if ((error as { code?: string })?.code === "not_found") notFound();
+    throw error;
+  });
+  return <PipelineDetail pipeline={pipeline} prospect={prospect} />;
 }
 
 export default async function PipelinePage({ params }: { params: Promise<{ id: string }> }) {

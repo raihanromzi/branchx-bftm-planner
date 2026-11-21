@@ -4,21 +4,13 @@ import { requireAdminPage } from "@/server/auth/page";
 import { getActivity } from "@/server/activities";
 import { CheckInForm } from "@/components/activities/checkin-form";
 
-export const dynamic = "force-dynamic";
-
 async function CheckInContent({ id }: { id: string }) {
-  try {
-    const activity = await getActivity(id);
-    if (activity.status !== "scheduled") {
-      notFound();
-    }
-    return <CheckInForm activity={activity} />;
-  } catch (error) {
-    if ((error as { code?: string })?.code === "not_found") {
-      notFound();
-    }
+  const activity = await getActivity(id).catch((error: unknown) => {
+    if ((error as { code?: string })?.code === "not_found") notFound();
     throw error;
-  }
+  });
+  if (activity.status !== "scheduled") notFound();
+  return <CheckInForm activity={activity} />;
 }
 
 export default async function CheckInPage({ params }: { params: Promise<{ id: string }> }) {

@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { requireAdminPage } from "@/server/auth/page";
 import { PetaScreen } from "@/components/map/peta-screen";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Peta" };
 
 export default async function PetaPage() {

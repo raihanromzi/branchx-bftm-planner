@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { requireAdminPage } from "@/server/auth/page";
 import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {

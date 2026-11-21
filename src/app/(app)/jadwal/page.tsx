@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { requireAdminPage } from "@/server/auth/page";
 import { JadwalScreen } from "@/components/activities/jadwal-screen";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Jadwal" };
 
 export default async function JadwalPage() {
